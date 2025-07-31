@@ -9,7 +9,7 @@ import uuid
 import arrow
 
 # models
-from application.models.geos import Aoi
+from application.models.geos import Aoi, Lulc
 from application.models.user import Session
 
 # logic
@@ -78,6 +78,16 @@ def geos_lulc_classification():
             landsat_version=landsat_version,
             cloud_cover=cloud_cover
         )
+
+        known_lulc = Lulc()
+        known_lulc.session_id = session_id
+        known_lulc.start_date = start_date
+        known_lulc.end_date = end_date
+        known_lulc.landsat_version = landsat_version
+        known_lulc.cloud_cover = cloud_cover
+
+        db.session.add(known_lulc)
+        db.session.commit()
 
         return make_response(jsonify(success_handler(results)), 200)
     except AppMessageException as e:

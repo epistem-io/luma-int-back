@@ -31,3 +31,36 @@ class Aoi(db.Model):
             'created_date': self.created_date.isoformat() if self.created_date else None,
             'modified_date': self.modified_date.isoformat() if self.modified_date else None,
         }
+
+
+class Lulc(db.Model):
+    __tablename__ = 'geos_lulc_classification'
+    id = db.Column(db.String(36), primary_key=True, default=get_uuid)
+    start_date = db.Column(db.String(10), nullable=True)
+    end_date = db.Column(db.String(10), nullable=True)
+    landsat_version = db.Column(db.String(10), nullable=True)
+    cloud_cover = db.Column(db.Integer, nullable=True)
+    
+    session_id = db.Column(db.String(36), db.ForeignKey('user_session.id'), index=True, nullable=False)
+    session = db.relationship('Session', backref='lulc')
+    
+    created_date = db.Column(db.DateTime, default=get_date)
+    modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)
+    
+    def to_json(self, attr=[]):
+        if attr:
+            return map_attr(self, attr)
+        
+        return {
+            'id': self.id,
+            'start_date': self.start_date,
+            'end_date': self.end_date,
+            'landsat_version': self.landsat_version,
+            'cloud_cover': self.cloud_cover,
+            'session_id': self.session_id,
+
+            'created_date': self.created_date.isoformat() if self.created_date else None,
+            'modified_date': self.modified_date.isoformat() if self.modified_date else None,
+        }
+        
+    
