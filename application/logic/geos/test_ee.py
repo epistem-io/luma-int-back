@@ -5,7 +5,7 @@ import pandas as pd
 import ee
 import geemap
 
-from application.utils.gee import get_aoi_from_gaul, get_landsat_composite, add_spectral_indices, split_training_validation, sample_composite
+from .gee_utils import get_aoi_from_gaul, get_landsat_composite, add_spectral_indices, split_training_validation, sample_composite
 
 def test_ee_v2():
     # --- Area of Interest (AOI) ---

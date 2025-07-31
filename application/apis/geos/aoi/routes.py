@@ -1,4 +1,4 @@
-# application/apis/geos/test_ee/routes.py
+# application/apis/geos/aoi/routes.py
 from application import db
 from application.apis.geos import geos_apis_blueprint
 from flask import make_response, request, jsonify, current_app, g as g_var
