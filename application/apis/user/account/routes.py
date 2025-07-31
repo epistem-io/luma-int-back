@@ -1,30 +1,22 @@
 # application/apis/user_apis/routes.py
-from .. import user_apis_blueprint
-from .... import db, login_manager
+from application import db, login_manager
+from application.apis.user import user_apis_blueprint
 from flask import make_response, request, jsonify, current_app, g as g_var
 from flask_login import current_user, login_user, logout_user, login_required
 
-import uuid
-import base64
-
-from datetime import datetime, timedelta
-from werkzeug.utils import secure_filename
-
 from flask_cors import cross_origin
 
-import gc
-import os
 import re
 
 # models
-from ....models.user.account import Account
+from application.models.user import Account
 
 # logic
-from ....logic.user.account import AccountLogic
+from application.logic.user.account import AccountLogic
 
 # utils
-from ....utils.common import AppMessageException, get_date, set_attr, get_default_list_param
-from ....utils.common import app_exception_handler, success_handler
+from application.utils.common import AppMessageException, get_date, set_attr, get_default_list_param
+from application.utils.common import app_exception_handler, success_handler
 
 @login_manager.user_loader
 def load_user(user_id):

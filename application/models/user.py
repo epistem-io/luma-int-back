@@ -1,5 +1,5 @@
 # application/models/users/account.py
-from ... import db
+from application import db
 
 from flask import current_app
 from flask_login import UserMixin
@@ -9,12 +9,11 @@ from datetime import datetime, timedelta
 import uuid
 import os
 
-from ...utils.common import get_date, map_attr
+from application.utils.common import get_date, map_attr
 
 class Account(UserMixin, db.Model):
     __tablename__ = 'user_account'
-    id = db.Column(db.Integer, primary_key=True)
-    uid = db.Column(db.String(36), unique=True, default=uuid.uuid4)
+    id = db.Column(db.String(36), primary_key=True, default=uuid.uuid4)
     
     email = db.Column(db.String(256), nullable=False, index=True)
     password = db.Column(db.String(256), unique=False, nullable=False)
@@ -51,3 +50,23 @@ class Account(UserMixin, db.Model):
             'uid': self.uid,
             'email': self.email,
         }
+
+
+class Session(db.Model):
+    __tablename__ = 'user_session'
+    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    account_id = db.Column(db.String(36), db.ForeignKey('user_account.id'), index=True, nullable=True)
+    account = db.relationship('Account', backref='session')
+    
+    created_date = db.Column(db.DateTime, default=get_date)
+    modified_date = db.Column(db.DateTime, onupdate=get_date)
+
+    def to_json(self, attr=[]):
+        if attr:
+            return map_attr(self, attr)
+        
+        return {
+            'id': self.id,
+            'account_id': self.account_id,
+        }
+        

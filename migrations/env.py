@@ -44,6 +44,11 @@ target_db = current_app.extensions['migrate'].db
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == "table" and name == "spatial_ref_sys": # exclude spatial_ref_sys from Alembic's consideration.
+        return False
+    return not object.info.get('is_view', False) # exclude views from Alembic's consideration.
+
 
 def get_metadata():
     if hasattr(target_db, 'metadatas'):
@@ -100,6 +105,7 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),
+            include_object=include_object,
             **conf_args
         )
 

@@ -1,22 +1,16 @@
 # application/apis/user_apis/routes.py
-from ... import db, login_manager
+from application import db, login_manager
 from flask import make_response, request, jsonify, current_app, g as g_var
 from flask_login import current_user, login_user, logout_user, login_required
 
-from datetime import datetime, timedelta
 from passlib.hash import sha256_crypt
 
-import os
-import json
-import uuid
-import base64
-
 # models
-from ...models.user.account import Account
+from application.models.user import Account
 
 # utils
-from ...utils.common import AppMessageException, get_date, set_attr, get_default_list_param
-from ...utils.common import app_exception_handler, success_handler
+from application.utils.common import AppMessageException, get_date, set_attr, get_default_list_param
+from application.utils.common import app_exception_handler, success_handler
 
 
 class AccountLogic:
