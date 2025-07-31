@@ -72,18 +72,14 @@ def f05_generate_lulc_map(
     composite_with_indices = f05_02_a_calculate_spectral_indicies(Map, aoi, landsat_composite)
     training, validation = f05_03_a_prepare_training_and_validation_data(Map)
     training_samples, validation_samples = f05_04_a_feature_extraction_optimized_sampling(Map, composite_with_indices, training, validation)
-
-    try:
-        f05_05_model_training_n_validation(Map, aoi, start_date, composite_with_indices, training_samples, validation_samples)
-    except Exception as e:
-        print(str(e))
+    results = f05_05_model_training_n_validation(Map, aoi, start_date, composite_with_indices, training_samples, validation_samples)
 
     layers = []
     for m in Map.ee_layer_dict.keys():
         d = Map.ee_layer_dict[m]
         layers.append({ 'name': m, 'url': d['ee_layer'].url })
 
-    return { 'message': 'success', 'layers': layers }
+    return { 'message': 'success', 'layers': layers, 'results': results }
 
 def f05_01_a_load_area_of_interest(Map:geemap.Map, aoi:ee.Geometry):
     Map.addLayer(aoi, 
@@ -184,8 +180,10 @@ def f05_05_model_training_n_validation(Map:geemap.Map, aoi:ee.Geometry, start_da
     confusion_matrix = validated.errorMatrix('kelas', 'classification')
 
     print('=== ACCURACY RESULTS ===')
-    print('Overall Accuracy:', confusion_matrix.accuracy().getInfo())
-    print('Kappa Coefficient:', confusion_matrix.kappa().getInfo())
+    overall_accuracy = confusion_matrix.accuracy().getInfo()
+    kappa_coefficient = confusion_matrix.kappa().getInfo()
+    print('Overall Accuracy:', overall_accuracy)
+    print('Kappa Coefficient:', kappa_coefficient)
 
     # F05.05.D Visualization
     # Add classified land cover layer
@@ -194,3 +192,8 @@ def f05_05_model_training_n_validation(Map:geemap.Map, aoi:ee.Geometry, start_da
         {'min': 1, 'max': 17, 'palette': land_cover_palette},
         'Land Cover Classification'
     )
+
+    return {
+        'overall_accuracy': overall_accuracy,
+        'kappa_coefficient': kappa_coefficient
+    }
