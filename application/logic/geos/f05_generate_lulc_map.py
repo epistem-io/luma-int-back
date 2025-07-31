@@ -88,7 +88,7 @@ def f05_01_a_load_area_of_interest(Map:geemap.Map, legend_dict:dict, aoi:ee.Geom
             'Area of Interest (AOI)',)
     legend_dict['Area of Interest (AOI)'] = [{ 'Area of Interest (AOI)': '#FF0000' }]
 
-def f05_01_b_generate_composite(Map:geemap.Map, aoi:ee.Geometry, start_date:str, end_date:str, landsat_version:str, cloud_cover:int):
+def f05_01_b_generate_composite(Map:geemap.Map, legend_dict:dict, aoi:ee.Geometry, start_date:str, end_date:str, landsat_version:str, cloud_cover:int):
     landsat_composite = get_landsat_composite(
         aoi=aoi,
         start_date=start_date,
