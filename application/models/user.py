@@ -9,11 +9,11 @@ from datetime import datetime, timedelta
 import uuid
 import os
 
-from application.utils.common import get_date, map_attr
+from application.utils.common import get_date, map_attr, get_uuid
 
 class Account(UserMixin, db.Model):
     __tablename__ = 'user_account'
-    id = db.Column(db.String(36), primary_key=True, default=uuid.uuid4)
+    id = db.Column(db.String(36), primary_key=True, default=get_uuid)
     
     email = db.Column(db.String(256), nullable=False, index=True)
     password = db.Column(db.String(256), unique=False, nullable=False)
@@ -54,7 +54,7 @@ class Account(UserMixin, db.Model):
 
 class Session(db.Model):
     __tablename__ = 'user_session'
-    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    id = db.Column(db.String(36), primary_key=True, default=get_uuid)
     account_id = db.Column(db.String(36), db.ForeignKey('user_account.id'), index=True, nullable=True)
     account = db.relationship('Account', backref='session')
     

@@ -10,8 +10,14 @@ import requests
 import ast
 import math
 import os
+import uuid
+import pathlib
+import shutil
 
 from .handler import *
+
+def get_uuid():
+    return str(uuid.uuid4())
 
 def get_date():
     return datetime.now(UTC).replace(tzinfo=None)
@@ -83,3 +89,10 @@ def get_default_list_param(args):
         'filter_by_text': filter_by_text[:1000],
     }
 
+def allowed_file(filename, allowed_extensions):
+    return filename != '' and '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
+def remove_tree_file(*paths):
+    folder = pathlib.Path(*paths).resolve()
+    if os.path.isdir(folder):
+        shutil.rmtree(folder)

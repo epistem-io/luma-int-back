@@ -1,6 +1,6 @@
 # application/models/geos/aoi.py
 from application import db
-from application.utils.common import get_date, map_attr
+from application.utils.common import get_date, map_attr, get_uuid
 
 import uuid
 
@@ -8,7 +8,7 @@ from geoalchemy2 import Geometry
 
 class Aoi(db.Model):
     __tablename__ = 'geos_aoi'
-    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    id = db.Column(db.String(36), primary_key=True, default=get_uuid)
     geom = db.Column(Geometry(geometry_type='GEOMETRY', srid=4326))
     area_size = db.Column(db.Numeric(18, 4, asdecimal=False, decimal_return_scale=None), nullable=True)
 
