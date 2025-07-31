@@ -64,27 +64,29 @@ def f05_generate_lulc_map(
 
     Map = geemap.Map()
     Map.centerObject(aoi, 8)
+    legend_dict = {}
 
     # aoi = get_aoi_from_gaul(country='Indonesia', province='Sumatera Selatan')
 
-    f05_01_a_load_area_of_interest(Map, aoi)
-    landsat_composite = f05_01_b_generate_composite(Map, aoi, start_date, end_date, landsat_version, cloud_cover)
-    composite_with_indices = f05_02_a_calculate_spectral_indicies(Map, aoi, landsat_composite)
-    training, validation = f05_03_a_prepare_training_and_validation_data(Map)
+    f05_01_a_load_area_of_interest(Map, legend_dict, aoi)
+    landsat_composite = f05_01_b_generate_composite(Map, legend_dict, aoi, start_date, end_date, landsat_version, cloud_cover)
+    composite_with_indices = f05_02_a_calculate_spectral_indicies(Map, legend_dict, aoi, landsat_composite)
+    training, validation = f05_03_a_prepare_training_and_validation_data(Map, legend_dict)
     training_samples, validation_samples = f05_04_a_feature_extraction_optimized_sampling(Map, composite_with_indices, training, validation)
-    results = f05_05_model_training_n_validation(Map, aoi, start_date, composite_with_indices, training_samples, validation_samples)
+    results = f05_05_model_training_n_validation(Map, legend_dict, aoi, start_date, composite_with_indices, training_samples, validation_samples)
 
     layers = []
     for m in Map.ee_layer_dict.keys():
         d = Map.ee_layer_dict[m]
         layers.append({ 'name': m, 'url': d['ee_layer'].url })
 
-    return { 'message': 'success', 'layers': layers, 'results': results }
+    return { 'message': 'success', 'layers': layers, 'results': results, 'legends': legend_dict }
 
-def f05_01_a_load_area_of_interest(Map:geemap.Map, aoi:ee.Geometry):
+def f05_01_a_load_area_of_interest(Map:geemap.Map, legend_dict:dict, aoi:ee.Geometry):
     Map.addLayer(aoi, 
             {'color': 'red', 'fillColor': '00000000'}, 
             'Area of Interest (AOI)',)
+    legend_dict['Area of Interest (AOI)'] = [{ 'Area of Interest (AOI)': '#FF0000' }]
 
 def f05_01_b_generate_composite(Map:geemap.Map, aoi:ee.Geometry, start_date:str, end_date:str, landsat_version:str, cloud_cover:int):
     landsat_composite = get_landsat_composite(
@@ -98,10 +100,11 @@ def f05_01_b_generate_composite(Map:geemap.Map, aoi:ee.Geometry, start_date:str,
     Map.addLayer(landsat_composite, 
             {'bands': ['SR_B4', 'SR_B3', 'SR_B2'], 'min': 0, 'max': 0.3}, 
             'Composite (RGB)')
+    legend_dict['Composite (RGB)'] = [{ 'Composite (RGB)': '#FFFFFF' }]
     
     return landsat_composite
 
-def f05_02_a_calculate_spectral_indicies(Map:geemap.Map, aoi:ee.Geometry, landsat_composite:ee.Image):
+def f05_02_a_calculate_spectral_indicies(Map:geemap.Map, legend_dict:dict, aoi:ee.Geometry, landsat_composite:ee.Image):
     # Input bands for generate NDVI and NDWI
     composite_with_indices = add_spectral_indices(landsat_composite)
 
@@ -120,10 +123,12 @@ def f05_02_a_calculate_spectral_indicies(Map:geemap.Map, aoi:ee.Geometry, landsa
     Map.addLayer(ndwi.clip(aoi), 
                 {'min': -1, 'max': 1, 'palette': ndwi_palette}, 
                 'NDWI')
+    legend_dict['NDVI'] = [{ 'NDVI': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9641'] }]
+    legend_dict['NDWI'] = [{ 'NDWI': ['#8B4513', '#DAA520', '#FFFF00', '#ADFF2F', '#00FF00', '#00FFFF', '#0000FF', '#000080'] }]
     
     return composite_with_indices
 
-def f05_03_a_prepare_training_and_validation_data(Map:geemap.Map):
+def f05_03_a_prepare_training_and_validation_data(Map:geemap.Map, legend_dict:dict):
     training_points = ee.FeatureCollection(TRAINING_POINTS_ASSET)
     # Check training data size
     print('Total training points:', training_points.size().getInfo())
@@ -142,6 +147,8 @@ def f05_03_a_prepare_training_and_validation_data(Map:geemap.Map):
     Map.addLayer(validation, 
                 {'color': 'orange'}, 
                 'Validation Points')
+    legend_dict['Training Points'] = [{ 'Training Points': '#0000FF' }]
+    legend_dict['Validation Points'] = [{ 'Validation Points': '#FFA500' }]
     
     return training, validation
 
@@ -152,7 +159,7 @@ def f05_04_a_feature_extraction_optimized_sampling(Map:geemap.Map, composite_wit
     
     return training_samples, validation_samples
 
-def f05_05_model_training_n_validation(Map:geemap.Map, aoi:ee.Geometry, start_date:str, composite_with_indices:ee.Image, training_samples:ee.FeatureCollection, validation_samples:ee.FeatureCollection):
+def f05_05_model_training_n_validation(Map:geemap.Map, legend_dict:dict, aoi:ee.Geometry, start_date:str, composite_with_indices:ee.Image, training_samples:ee.FeatureCollection, validation_samples:ee.FeatureCollection):
     # F05.05.A Model Training using RandomForest
     classifier = ee.Classifier.smileRandomForest(
         # Input hyper-parameter
@@ -192,6 +199,7 @@ def f05_05_model_training_n_validation(Map:geemap.Map, aoi:ee.Geometry, start_da
         {'min': 1, 'max': 17, 'palette': land_cover_palette},
         'Land Cover Classification'
     )
+    legend_dict['Land Cover Classification'] = [{n: land_cover_palette[i]} for i, n in enumerate(land_cover_names)]
 
     return {
         'overall_accuracy': overall_accuracy,
