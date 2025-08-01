@@ -75,7 +75,7 @@ def geos_aoi_upload():
         if not file:
             raise AppMessageException('No selected file')
         if not file.filename:
-            raise appmessageexception('No selected file')
+            raise AppMessageException('No selected file name')
         if not allowed_file(file.filename, {'kml', 'kmz', 'zip'}):
             raise AppMessageException('Invalid file format, only ZIP, KML or KMZ files are allowed')
         

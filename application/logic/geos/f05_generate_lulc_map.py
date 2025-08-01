@@ -10,7 +10,8 @@ BANDS = [
 
 # --- Reference Data ---
 # Path to the ground truth points FeatureCollection (should contain 17 LULC classes)
-TRAINING_POINTS_ASSET = 'projects/ee-rg2icraf/assets/Sumsel_GT_Restore'
+# TRAINING_POINTS_ASSET = 'projects/ee-rg2icraf/assets/Sumsel_GT_Restore'
+TRAINING_POINTS_ASSET = 'projects/ee-rg2icraf/assets/Indonesia_lulc_Sample'
 
 
 # --- Visualization ---
