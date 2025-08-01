@@ -37,6 +37,7 @@ def geos_lulc_classification():
         end_date = data.get('end_date')
         landsat_version = data.get('landsat_version')
         cloud_cover = data.get('cloud_cover')
+        test_timeout = data.get('test_timeout', False)
 
         if not start_date:
             raise AppMessageException('please input: start date, format: yyyy-mm-dd')
@@ -76,7 +77,8 @@ def geos_lulc_classification():
             start_date=start_date,
             end_date=end_date,
             landsat_version=landsat_version,
-            cloud_cover=cloud_cover
+            cloud_cover=cloud_cover,
+            test_timeout=test_timeout
         )
 
         known_lulc = Lulc()

@@ -60,7 +60,8 @@ def f05_generate_lulc_map(
     start_date:str,
     end_date:str,
     landsat_version:str,
-    cloud_cover:int):
+    cloud_cover:int,
+    test_timeout:bool=False):
 
     Map = geemap.Map()
     Map.centerObject(aoi, 8)

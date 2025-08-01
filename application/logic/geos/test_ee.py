@@ -85,6 +85,27 @@ def test_ee_v2():
                 'Area of Interest (AOI)',)
     # Visualize AOI
     Map.centerObject(aoi, 8)
+    # Create legend 
+    legend_dict = dict(zip(land_cover_names, land_cover_palette))
+    Map.add_legend(
+        title="Land Cover Classes",
+        legend_dict=legend_dict,
+        draggable=True
+    )
+    print(legend_dict)
+    # print(Map.ee_layer_dict)
+    # print(Map.legends[0])
+    # print(dir(Map.legends[0]))
+    # print(type(Map.legends[0]))
+    # print(Map._legend)
+    # print(dir(Map._legend))
+    # print(type(Map._legend))
+    # print(legend)
+    # print(dir(legend))
+    # print(type(legend))
+
+
+    raise Exception('test')
 
     landsat_composite = get_landsat_composite(
         aoi=aoi,
