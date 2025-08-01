@@ -215,11 +215,11 @@ def f05_05_model_training_n_validation(Map:geemap.Map, legend_dict:dict, aoi:ee.
     print('Kappa Coefficient:', kappa_coefficient)
 
     if overall_accuracy >= 0.7:
-        accuracy_assessment = '✓ Good accuracy achieved'
+        accuracy_assessment = 'akurasi yang baik tercapai'
     elif overall_accuracy >= 0.6:
-        accuracy_assessment = '~ Moderate accuracy - acceptable for proof of concept'
+        accuracy_assessment = 'akurasi sedang - dapat diterima untuk pembuktian konsep'
     else:
-        accuracy_assessment = '! Lower accuracy - consider additional training data or parameter tuning'
+        accuracy_assessment = 'akurasi rendah - pertimbangkan data pelatihan tambahan atau perubahan parameter'
 
     # F05.05.D Visualization
     # Add classified land cover layer
