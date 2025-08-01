@@ -1,7 +1,7 @@
 import ee
 import geemap
 
-from .gee_utils import get_aoi_from_gaul, get_landsat_composite, add_spectral_indices, split_training_validation, sample_composite
+from .gee_utils import get_aoi_from_gaul, get_landsat_composite, add_spectral_indices, split_training_validation, sample_composite, get_aoi_from_gaul_regency, get_training_points_for_aoi
 
 BANDS = [
     'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7',  # Surface reflectance bands
@@ -11,8 +11,8 @@ BANDS = [
 # --- Reference Data ---
 # Path to the ground truth points FeatureCollection (should contain 17 LULC classes)
 # TRAINING_POINTS_ASSET = 'projects/ee-rg2icraf/assets/Sumsel_GT_Restore'
+USER_TRAINING_POINTS_ASSET = None
 TRAINING_POINTS_ASSET = 'projects/ee-rg2icraf/assets/Indonesia_lulc_Sample'
-
 
 # --- Visualization ---
 # Color palette for each LULC class (order must match class names)
@@ -56,6 +56,12 @@ land_cover_names = [
     'Waterbody'
 ]
 
+# Training points validation settings
+CLASS_PROPERTY = 'kelas'  # Property containing LULC class labels (1-17)
+MIN_POINTS_PER_CLASS = 10  # Minimum points per class for quality warnings
+
+
+
 def f05_generate_lulc_map(
     aoi:ee.Geometry,
     start_date:str,
@@ -74,7 +80,7 @@ def f05_generate_lulc_map(
     f05_01_a_load_area_of_interest(Map, legend_dict, aoi)
     landsat_composite = f05_01_b_generate_composite(Map, legend_dict, aoi, start_date, end_date, landsat_version, cloud_cover)
     composite_with_indices = f05_02_a_calculate_spectral_indicies(Map, legend_dict, aoi, landsat_composite)
-    training, validation = f05_03_a_prepare_training_and_validation_data(Map, legend_dict)
+    training, validation = f05_03_a_prepare_training_and_validation_data(Map, aoi, legend_dict)
     training_samples, validation_samples = f05_04_a_feature_extraction_optimized_sampling(Map, composite_with_indices, training, validation)
     results = f05_05_model_training_n_validation(Map, legend_dict, aoi, start_date, composite_with_indices, training_samples, validation_samples)
 
@@ -131,14 +137,19 @@ def f05_02_a_calculate_spectral_indicies(Map:geemap.Map, legend_dict:dict, aoi:e
     
     return composite_with_indices
 
-def f05_03_a_prepare_training_and_validation_data(Map:geemap.Map, legend_dict:dict):
-    training_points = ee.FeatureCollection(TRAINING_POINTS_ASSET)
-    # Check training data size
-    print('Total training points:', training_points.size().getInfo())
+def f05_03_a_prepare_training_and_validation_data(Map:geemap.Map, aoi:ee.Geometry, legend_dict:dict):
+    # Load and validate training points for BANYUASIN using the new flexible system
+    print(f"\n=== LOADING TRAINING POINTS ===")
+    training_points = get_training_points_for_aoi(
+        aoi_geometry=aoi,
+        user_training_points_asset=USER_TRAINING_POINTS_ASSET,
+        backup_training_points_asset=TRAINING_POINTS_ASSET,
+        class_property=CLASS_PROPERTY,
+        min_points_per_class=MIN_POINTS_PER_CLASS
+    )
 
     # Split points into training and validation sets
     training, validation = split_training_validation(training_points, split=0.7, seed=42)
-
 
     print('Training points:', training.size().getInfo())
     print('Validation points:', validation.size().getInfo())
@@ -156,38 +167,46 @@ def f05_03_a_prepare_training_and_validation_data(Map:geemap.Map, legend_dict:di
     return training, validation
 
 def f05_04_a_feature_extraction_optimized_sampling(Map:geemap.Map, composite_with_indices:ee.Image, training:ee.FeatureCollection, validation:ee.FeatureCollection):
-    # Input selected bands
-    training_samples = sample_composite(composite_with_indices, training, BANDS)
-    validation_samples = sample_composite(composite_with_indices, validation, BANDS)
+    # Sample satellite data at training and validation point locations for BANYUASIN
+    print(f"Sampling satellite data")
+    training_samples = sample_composite(composite_with_indices, training, BANDS, class_property=CLASS_PROPERTY)
+    validation_samples = sample_composite(composite_with_indices, validation, BANDS, class_property=CLASS_PROPERTY)
     
     return training_samples, validation_samples
 
 def f05_05_model_training_n_validation(Map:geemap.Map, legend_dict:dict, aoi:ee.Geometry, start_date:str, composite_with_indices:ee.Image, training_samples:ee.FeatureCollection, validation_samples:ee.FeatureCollection):
     # F05.05.A Model Training using RandomForest
+    # Configure Random Forest classifier optimized for BANYUASIN's diverse land cover
+    print(f"Training Random Forest classifier")
     classifier = ee.Classifier.smileRandomForest(
-        # Input hyper-parameter
-        numberOfTrees=100,  # Reduced from 200
-        variablesPerSplit=3,
-        minLeafPopulation=2,  # Increased from 1
-        bagFraction=0.7,  # Increased from 0.5
-        seed=42
+        # Optimized hyper-parameters for BANYUASIN's 17 LULC classes
+        numberOfTrees=100,  # Balanced performance vs speed
+        variablesPerSplit=3,  # Good for 10 input features
+        minLeafPopulation=2,  # Prevent overfitting
+        bagFraction=0.7,  # Robust sampling
+        seed=42  # Reproducible results
     )
 
+    # Train the classifier using BANYUASIN training samples
     trained = classifier.train(
         features=training_samples,
-        classProperty='kelas',
+        classProperty=CLASS_PROPERTY,
         inputProperties=BANDS
     )
+    print(f"Classifier training complete.")
     
     # F05.05.B Classification
     # Classify with tileScale for memory optimization
+    print(f"Applying classification")
     classified = (composite_with_indices.select(BANDS)
                 .classify(trained)
                 .set('system:time_start', ee.Date(start_date).millis()))
+    print(f"Classification complete")
     
     # F05.05.C Validation
+    print(f"\n=== ACCURACY ASSESSMENT ===")
     validated = validation_samples.classify(trained)
-    confusion_matrix = validated.errorMatrix('kelas', 'classification')
+    confusion_matrix = validated.errorMatrix(CLASS_PROPERTY, 'classification')
 
     print('=== ACCURACY RESULTS ===')
     overall_accuracy = confusion_matrix.accuracy().getInfo()
@@ -195,16 +214,24 @@ def f05_05_model_training_n_validation(Map:geemap.Map, legend_dict:dict, aoi:ee.
     print('Overall Accuracy:', overall_accuracy)
     print('Kappa Coefficient:', kappa_coefficient)
 
+    if overall_accuracy >= 0.7:
+        accuracy_assessment = '✓ Good accuracy achieved'
+    elif overall_accuracy >= 0.6:
+        accuracy_assessment = '~ Moderate accuracy - acceptable for proof of concept'
+    else:
+        accuracy_assessment = '! Lower accuracy - consider additional training data or parameter tuning'
+
     # F05.05.D Visualization
     # Add classified land cover layer
     Map.addLayer(
         classified.clip(aoi),
         {'min': 1, 'max': 17, 'palette': land_cover_palette},
-        'Land Cover Classification'
+        'Land Cover Classification (2018)'
     )
-    legend_dict['Land Cover Classification'] = [{n: land_cover_palette[i]} for i, n in enumerate(land_cover_names)]
+    legend_dict['Land Cover Classification (2018)'] = [{n: land_cover_palette[i]} for i, n in enumerate(land_cover_names)]
 
     return {
         'overall_accuracy': overall_accuracy,
-        'kappa_coefficient': kappa_coefficient
+        'kappa_coefficient': kappa_coefficient,
+        'accuracy_assessment': accuracy_assessment
     }
