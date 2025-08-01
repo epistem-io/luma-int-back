@@ -67,7 +67,8 @@ def f05_generate_lulc_map(
     Map.centerObject(aoi, 8)
     legend_dict = {}
 
-    # aoi = get_aoi_from_gaul(country='Indonesia', province='Sumatera Selatan')
+    if test_timeout:
+        aoi = get_aoi_from_gaul(country='Indonesia', province='Sumatera Selatan')
 
     f05_01_a_load_area_of_interest(Map, legend_dict, aoi)
     landsat_composite = f05_01_b_generate_composite(Map, legend_dict, aoi, start_date, end_date, landsat_version, cloud_cover)
