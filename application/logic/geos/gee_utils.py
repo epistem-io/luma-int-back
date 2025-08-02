@@ -1,4 +1,6 @@
 import ee
+import geemap
+import time
 
 def get_aoi_from_gaul(country="Indonesia", province="Sumatera Selatan"):
     """
@@ -289,7 +291,7 @@ def get_training_points_for_aoi(aoi_geometry, user_training_points_asset=None,
     
     Args:
         aoi_geometry: ee.Geometry, area of interest geometry
-        user_training_points_asset: str or None, user-provided training points asset path
+        user_training_points_asset: str or None or ee.FeatureCollection, user-provided training points asset path
         backup_training_points_asset: str, backup training points asset path
         class_property: str, property name containing class labels (default: 'kelas')
         min_points_per_class: int, minimum points per class for warnings (default: 10)
@@ -306,20 +308,27 @@ def get_training_points_for_aoi(aoi_geometry, user_training_points_asset=None,
         
         # Step 1: Try user-provided asset first
         if user_training_points_asset is not None:
-            print(f"[INFO] Attempting to use user-provided training points: {user_training_points_asset}")
+            if isinstance(user_training_points_asset, ee.FeatureCollection):
+                user_points = user_training_points_asset
+            else:
+                print(f"[INFO] Attempting to use user-provided training points: {user_training_points_asset}")
+                try:
+                    user_points = ee.FeatureCollection(user_training_points_asset)
+                except Exception as e:
+                    print(f"[ERROR] Failed to use user training points: {str(e)}")
+                    print(f"[INFO] Falling back to backup training points...")
+        
             try:
-                user_points = ee.FeatureCollection(user_training_points_asset)
                 validate_training_points(user_points, aoi_geometry)
-                
+
                 # Clip to AOI
                 training_points = user_points.filterBounds(aoi_geometry)
                 source_info = f"user-provided asset: {user_training_points_asset}"
                 print(f"[SUCCESS] Successfully loaded user training points")
-                
             except Exception as e:
-                print(f"[ERROR] Failed to use user training points: {str(e)}")
+                print(f"[ERROR] Failed to validate user training points: {str(e)}")
                 print(f"[INFO] Falling back to backup training points...")
-        
+
         # Step 2: Use backup asset if user asset failed or wasn't provided
         if training_points is None:
             print(f"[INFO] Using backup training points: {backup_training_points_asset}")
@@ -353,3 +362,80 @@ def get_training_points_for_aoi(aoi_geometry, user_training_points_asset=None,
         
     except Exception as e:
         raise Exception(f"Failed to get training points for AOI: {str(e)}")
+
+# def import_file_to_ee(filepath, extension):
+#     if extension == 'csv':
+#         return geemap.csv_to_ee(filepath)
+#     elif extension == 'kml':
+#         return geemap.kml_to_ee(filepath)
+#     elif extension == 'shp':
+#         return geemap.shp_to_ee(filepath)
+#     else:
+#         raise Exception(f"Unsupported file extension while import file to ee, extension: {extension}")
+
+def import_file_to_ee(filepath, extension, asset_id):
+    assetId = 'projects/staging-scene-428902/assets/{}'.format(asset_id)
+    taskId = ee.data.newTaskId()[0]
+    task_data = ee.data.startTableIngestion(
+        request_id=taskId,
+        params={
+            'name': assetId,
+            "sources":[
+                {
+                    "uris":[filepath],
+                    "charset":"UTF-8"
+                }
+            ]
+        },
+        allow_overwrite=True
+    )
+    # task = ee.batch.Task(task_data['id'])
+
+    # while task.active():
+    #     print('waiting for completion...')
+    #     time.sleep(1)
+    
+    # print('task completed...!')
+    
+    # data = {
+    #     "id": assetId,
+    #     "name": assetId,
+    #     "type": "TABLE",
+    # }
+    # r = ee.data.createAsset(
+    #     value=data,
+    #     path=assetId
+    # )
+
+    # asset_id = ee.data.getAsset('projects/staging-scene-428902/assets/training_sumsel')
+    # geemap.ee_api_to_csv(filepath)
+
+    # gdf = geemap.shp_to_gdf(filepath)
+
+    # chunk_size = 10000  # Number of features per chunk
+    # chunks = [gdf.iloc[i:i + chunk_size] for i in range(0, len(gdf), chunk_size)]
+
+    # asset_collection = []
+    # for i, c in enumerate(chunks[:2]):
+    #     asset_collection.append(feature_collection_to_assets(geemap.gdf_to_ee(c), '{}_{}'.format(asset_id, i)))
+    
+    return assetId
+
+# def feature_collection_to_assets(fc, asset_id):
+#     assetId = 'projects/staging-scene-428902/assets/{}'.format(asset_id)
+#     task = ee.batch.Export.table.toAsset(
+#         collection=fc,
+#         assetId=assetId,
+#         description='{}'.format(asset_id)
+#     )
+
+#     task.start()
+
+    
+#     while task.active():
+#         print('waiting for completion...')
+#         time.sleep(1)
+    
+#     print('task completed...!')
+    
+#     return asset_id

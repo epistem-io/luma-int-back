@@ -11,14 +11,17 @@ import arrow
 # models
 from application.models.geos import Aoi, Lulc
 from application.models.user import Session
+from application.models.master import Settings
 
 # logic
 from application.logic.geos import f05_generate_lulc_map as logic
 from application.logic.geos import aoi as aoi_logic
+from application.logic.geos import gee_utils
 
 # utils
 from application.utils.common import AppMessageException, get_date, set_attr, get_default_list_param
 from application.utils.common import app_exception_handler, success_handler
+from application.utils.common import save_uploaded_file, check_file, get_file_extension, process_zip, remove_tree_file, upload_folder
 
 
 @geos_apis_blueprint.route('/lulc-classification', methods=['POST'])
@@ -37,7 +40,6 @@ def geos_lulc_classification():
         end_date = data.get('end_date')
         landsat_version = data.get('landsat_version')
         cloud_cover = data.get('cloud_cover')
-        test_timeout = data.get('test_timeout', False)
 
         if not start_date:
             raise AppMessageException('please input: start date, format: yyyy-mm-dd')
@@ -78,7 +80,7 @@ def geos_lulc_classification():
             end_date=end_date,
             landsat_version=landsat_version,
             cloud_cover=cloud_cover,
-            test_timeout=test_timeout
+            training_points_asset=Settings.get_settings('TRAINING_POINTS_ASSET')
         )
 
         known_lulc = Lulc()
@@ -90,6 +92,55 @@ def geos_lulc_classification():
 
         db.session.add(known_lulc)
         db.session.commit()
+
+        return make_response(jsonify(success_handler(results)), 200)
+    except AppMessageException as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 400) # send bad request
+    except Exception as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 500) # send internal error
+
+
+@geos_apis_blueprint.route('/lulc-classification/upload-training-dataset', methods=['POST'])
+@cross_origin()
+def geos_lulc_classification_upload_training_dataset():
+    g_var.__api_name__ = 'geos_lulc_classification_upload_training_dataset'
+    g_var.__api_description__ = 'geos lulc classification upload training dataset'
+    
+    try:
+        data = request.form
+
+        session_id = data.get('session_id')
+        file = request.files.get('file')
+
+        known_session = Session.query.filter_by(id=session_id).first()
+        if not known_session:
+            raise AppMessageException('session not found')
+
+        extension = check_file(file, {'csv', 'shp', 'zip'})
+        filepath = save_uploaded_file(session_id, file)
+
+        # if extension == 'zip':
+        #     filepath = process_zip(filepath, session_id, get_extension='shp')
+        #     extension = 'shp'
+        
+        asset_id = gee_utils.import_file_to_ee('gs://{}/{}'.format(current_app.config.get('GCS_BUCKET_NAME'), filepath), extension=extension, asset_id=session_id)
+
+        known_aoi = Aoi.query.filter_by(session_id=session_id).first()
+        if not known_aoi:
+            raise AppMessageException('aoi not found')
+
+        aoi = aoi_logic.wkb_to_ee_geometry(str(known_aoi.geom))
+
+        remove_tree_file(upload_folder, session_id)
+        
+        results = logic.f05_generate_lulc_map(
+            aoi=aoi,
+            start_date='2018-01-01',
+            end_date='2018-12-31',
+            landsat_version='LC08',
+            cloud_cover=50,
+            training_points_asset=asset_id
+        )
 
         return make_response(jsonify(success_handler(results)), 200)
     except AppMessageException as e:

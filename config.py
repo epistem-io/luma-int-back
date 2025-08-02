@@ -17,6 +17,7 @@ class Config:
         'max_overflow': 0, # as recommended in https://docs.sqlalchemy.org/en/20/core/pooling.html
     }
 
+    GCS_BUCKET_NAME = os.environ.get('GCS_BUCKET_NAME')
 
 class DevelopmentConfig(Config):
     ENV = "development"

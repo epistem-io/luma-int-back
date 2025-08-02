@@ -1,10 +1,12 @@
 # application/utils/__init__.py
+from application.utils.cloud_storage import CloudStorage
 
 from flask import render_template
 from datetime import timedelta
 from string import ascii_lowercase, digits
 from sqlalchemy.orm.collections import InstrumentedList
 from datetime import datetime, UTC
+from werkzeug.utils import secure_filename
 
 import requests
 import ast
@@ -13,8 +15,12 @@ import os
 import uuid
 import pathlib
 import shutil
+import zipfile
 
 from .handler import *
+
+gcs = CloudStorage()
+upload_folder = 'uploaded-file'
 
 def get_uuid():
     return str(uuid.uuid4())
@@ -96,3 +102,53 @@ def remove_tree_file(*paths):
     folder = pathlib.Path(*paths).resolve()
     if os.path.isdir(folder):
         shutil.rmtree(folder)
+
+def save_uploaded_file(folder_name, file):
+    filepath = os.path.join(upload_folder, folder_name)
+    if not os.path.exists(filepath):
+        os.makedirs(filepath)
+    
+    fullpath = os.path.join(filepath, secure_filename(file.filename))
+    file.save(fullpath)
+
+    gcs.upload(fullpath)
+    
+    return fullpath
+
+def check_file(file, allowed_extensions):
+    if not file:
+        raise AppMessageException('No selected file')
+    if not file.filename:
+        raise AppMessageException('No selected file name')
+    if not allowed_file(file.filename, allowed_extensions):
+        raise AppMessageException('Invalid file format, only {} files are allowed'.format(', '.join([n.upper() for n in allowed_extensions])))
+    
+    return get_file_extension(file)
+
+def get_file_extension(file):
+    extension = file.filename.rsplit('.', 1)[1].lower()
+    return extension
+
+def process_zip(filepath, parent_folder, get_extension='shp'):
+    extracted_filepath = os.path.join(upload_folder, parent_folder, 'temp_zip_extraction')
+    os.makedirs(extracted_filepath, exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(filepath, 'r') as zip_file:
+            zip_file.extractall(extracted_filepath)
+
+        # check if ada file shp didalem zip, return error if not
+        filename = None
+        for root, dirs, files in os.walk(extracted_filepath):
+            for file in files:
+                fullpath = os.path.join(root, file)
+                if not file.startswith('.') and file.endswith(get_extension):
+                    filename = fullpath
+                gcs.upload(fullpath)
+        if not filename:
+            raise AppMessageException('No .{} file found in the ZIP file.'.format(get_extension))
+        
+        return filename
+    except Exception as e:
+        raise AppMessageException('Failed to process ZIP file')
+        
