@@ -17,6 +17,7 @@ from application.models.master import Settings
 from application.logic.geos import f05_generate_lulc_map as logic
 from application.logic.geos import aoi as aoi_logic
 from application.logic.geos import gee_utils
+from application.logic.user import session as session_logic
 
 # utils
 from application.utils.common import AppMessageException, get_date, set_attr, get_default_list_param
@@ -123,32 +124,31 @@ def geos_lulc_classification_upload_training_dataset():
         session_id = data.get('session_id')
         file = request.files.get('file')
 
-        known_session = Session.query.filter_by(id=session_id).first()
-        if not known_session:
-            raise AppMessageException('session not found')
-
         extension = check_file(file, {'csv', 'shp', 'zip'})
+
+        known_session = session_logic.init_session(session_id)
+
         filepath = save_uploaded_file(session_id, file)
 
         # if extension == 'zip':
         #     filepath = process_zip(filepath, session_id, get_extension='shp')
         #     extension = 'shp'
         
-        results = gee_utils.import_file_to_ee('gs://{}/{}'.format(current_app.config.get('GCS_BUCKET_NAME'), filepath), extension=extension, asset_id=session_id)
+        results = gee_utils.import_file_to_ee('gs://{}/{}'.format(current_app.config.get('GCS_BUCKET_NAME'), filepath), extension=extension, asset_id=known_session.id)
         if results['task_state'] != 'COMPLETED':
             raise AppMessageException('failed to import training dataset.')
 
-        remove_tree_file(upload_folder, session_id)
+        remove_tree_file(upload_folder, known_session.id)
 
-        known_gee_asset = GeeAsset.query.filter_by(session_id=session_id).first()
+        known_gee_asset = GeeAsset.query.filter_by(session_id=known_session.id).first()
         if not known_gee_asset:
             known_gee_asset = GeeAsset()
-            known_gee_asset.session_id = session_id
+            known_gee_asset.session_id = known_session.id
             known_gee_asset.asset_id = results['asset_id']
             db.session.add(known_gee_asset)
             db.session.commit()
 
-        return make_response(jsonify(success_handler({ 'message': 'successs' })), 200)
+        return make_response(jsonify(success_handler({ 'message': 'successs', 'session_id': known_session.id })), 200)
     except AppMessageException as e:
         return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 400) # send bad request
     except Exception as e:

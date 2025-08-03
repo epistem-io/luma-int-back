@@ -13,7 +13,7 @@ def init_session(session_id):
             known_session.account_id = current_user.id
         
         db.session.add(known_session)
-        db.session.flush()
+        db.session.commit()
         db.session.refresh(known_session)
     
     return known_session
