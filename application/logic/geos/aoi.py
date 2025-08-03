@@ -39,7 +39,7 @@ def aoi(known_session, geometry):
     known_aoi.geom = wkt_geom
 
     area_size = geometry.area().getInfo()
-    known_aoi.area_size = (area_size / 1000) if area_size else 0
+    known_aoi.area_size = (area_size / 10000) if area_size else 0
     
     db.session.add(known_aoi)
     
