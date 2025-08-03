@@ -375,9 +375,9 @@ def get_training_points_for_aoi(aoi_geometry, user_training_points_asset=None,
 
 def import_file_to_ee(filepath, extension, asset_id):
     assetId = 'projects/staging-scene-428902/assets/{}'.format(asset_id)
-    taskId = ee.data.newTaskId()[0]
+    task_id = ee.data.newTaskId()[0]
     task_data = ee.data.startTableIngestion(
-        request_id=taskId,
+        request_id=task_id,
         params={
             'name': assetId,
             "sources":[
@@ -389,6 +389,23 @@ def import_file_to_ee(filepath, extension, asset_id):
         },
         allow_overwrite=True
     )
+
+    task_state = None
+    total_seconds = 0
+    check_interval = 10
+    while True:
+        tasks = ee.data.getTaskList()
+        for task in tasks:
+            if task['id'] == task_data['id']:
+                task_state = task['state']
+                print('waiting for completion...')
+                break
+        if task_state in ('COMPLETED', 'FAILED') or total_seconds > 120:
+            break
+        total_seconds += check_interval
+        time.sleep(check_interval)
+    
+
     # task = ee.batch.Task(task_data['id'])
 
     # while task.active():
@@ -419,7 +436,7 @@ def import_file_to_ee(filepath, extension, asset_id):
     # for i, c in enumerate(chunks[:2]):
     #     asset_collection.append(feature_collection_to_assets(geemap.gdf_to_ee(c), '{}_{}'.format(asset_id, i)))
     
-    return assetId
+    return { 'asset_id': assetId, 'task_id': task_id, 'task_state': task_state }
 
 # def feature_collection_to_assets(fc, asset_id):
 #     assetId = 'projects/staging-scene-428902/assets/{}'.format(asset_id)

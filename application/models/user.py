@@ -69,4 +69,28 @@ class Session(db.Model):
             'id': self.id,
             'account_id': self.account_id,
         }
+
+
+class GeeAsset(db.Model):
+    __tablename__ = 'user_gee_asset'
+    id = db.Column(db.String(36), primary_key=True, default=get_uuid)
+    session_id = db.Column(db.String(36), db.ForeignKey('user_session.id'), index=True, nullable=False)
+    session = db.relationship('Session', backref='gee_asset')
+    
+    asset_id = db.Column(db.String(256), nullable=True)
+    
+    created_date = db.Column(db.DateTime, default=get_date)
+    modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)
+    
+    def to_json(self, attr=[]):
+        if attr:
+            return map_attr(self, attr)
         
+        return {
+            'id': self.id,
+            'session_id': self.session_id,
+            'asset_id': self.asset_id,
+
+            'created_date': self.created_date.isoformat() if self.created_date else None,
+            'modified_date': self.modified_date.isoformat() if self.modified_date else None,
+        }

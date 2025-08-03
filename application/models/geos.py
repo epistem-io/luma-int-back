@@ -43,6 +43,8 @@ class Lulc(db.Model):
     
     session_id = db.Column(db.String(36), db.ForeignKey('user_session.id'), index=True, nullable=False)
     session = db.relationship('Session', backref='lulc')
+
+    training_asset_id = db.Column(db.String(256), nullable=True)
     
     created_date = db.Column(db.DateTime, default=get_date)
     modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)
@@ -62,5 +64,3 @@ class Lulc(db.Model):
             'created_date': self.created_date.isoformat() if self.created_date else None,
             'modified_date': self.modified_date.isoformat() if self.modified_date else None,
         }
-        
-    

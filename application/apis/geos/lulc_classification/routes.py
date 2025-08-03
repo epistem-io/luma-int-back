@@ -10,7 +10,7 @@ import arrow
 
 # models
 from application.models.geos import Aoi, Lulc
-from application.models.user import Session
+from application.models.user import Session, GeeAsset
 from application.models.master import Settings
 
 # logic
@@ -40,6 +40,7 @@ def geos_lulc_classification():
         end_date = data.get('end_date')
         landsat_version = data.get('landsat_version')
         cloud_cover = data.get('cloud_cover')
+        use_own_dataset = data.get('use_own_dataset')
 
         if not start_date:
             raise AppMessageException('please input: start date, format: yyyy-mm-dd')
@@ -74,13 +75,22 @@ def geos_lulc_classification():
 
         aoi = aoi_logic.wkb_to_ee_geometry(str(known_aoi.geom))
 
+        training_points_asset = Settings.get_settings('TRAINING_POINTS_ASSET')
+
+        if use_own_dataset:
+            known_gee_asset = GeeAsset.query.filter_by(session_id=session_id).order_by(GeeAsset.id.desc()).first()
+            if known_gee_asset:
+                training_points_asset = known_gee_asset.asset_id
+            else:
+                raise AppMessageException('own dataset not found')
+
         results = logic.f05_generate_lulc_map(
             aoi=aoi,
             start_date=start_date,
             end_date=end_date,
             landsat_version=landsat_version,
             cloud_cover=cloud_cover,
-            training_points_asset=Settings.get_settings('TRAINING_POINTS_ASSET')
+            training_points_asset=training_points_asset
         )
 
         known_lulc = Lulc()
@@ -89,6 +99,7 @@ def geos_lulc_classification():
         known_lulc.end_date = end_date
         known_lulc.landsat_version = landsat_version
         known_lulc.cloud_cover = cloud_cover
+        known_lulc.training_asset_id = training_points_asset
 
         db.session.add(known_lulc)
         db.session.commit()
@@ -123,26 +134,21 @@ def geos_lulc_classification_upload_training_dataset():
         #     filepath = process_zip(filepath, session_id, get_extension='shp')
         #     extension = 'shp'
         
-        asset_id = gee_utils.import_file_to_ee('gs://{}/{}'.format(current_app.config.get('GCS_BUCKET_NAME'), filepath), extension=extension, asset_id=session_id)
-
-        known_aoi = Aoi.query.filter_by(session_id=session_id).first()
-        if not known_aoi:
-            raise AppMessageException('aoi not found')
-
-        aoi = aoi_logic.wkb_to_ee_geometry(str(known_aoi.geom))
+        results = gee_utils.import_file_to_ee('gs://{}/{}'.format(current_app.config.get('GCS_BUCKET_NAME'), filepath), extension=extension, asset_id=session_id)
+        if results['task_state'] != 'COMPLETED':
+            raise AppMessageException('failed to import training dataset.')
 
         remove_tree_file(upload_folder, session_id)
-        
-        results = logic.f05_generate_lulc_map(
-            aoi=aoi,
-            start_date='2018-01-01',
-            end_date='2018-12-31',
-            landsat_version='LC08',
-            cloud_cover=50,
-            training_points_asset=asset_id
-        )
 
-        return make_response(jsonify(success_handler(results)), 200)
+        known_gee_asset = GeeAsset.query.filter_by(session_id=session_id).first()
+        if not known_gee_asset:
+            known_gee_asset = GeeAsset()
+            known_gee_asset.session_id = session_id
+            known_gee_asset.asset_id = results['asset_id']
+            db.session.add(known_gee_asset)
+            db.session.commit()
+
+        return make_response(jsonify(success_handler({ 'message': 'successs' })), 200)
     except AppMessageException as e:
         return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 400) # send bad request
     except Exception as e:
