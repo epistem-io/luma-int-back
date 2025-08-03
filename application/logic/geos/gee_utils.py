@@ -373,8 +373,8 @@ def get_training_points_for_aoi(aoi_geometry, user_training_points_asset=None,
 #     else:
 #         raise Exception(f"Unsupported file extension while import file to ee, extension: {extension}")
 
-def import_file_to_ee(filepath, extension, asset_id):
-    assetId = 'projects/staging-scene-428902/assets/{}'.format(asset_id)
+def import_file_to_ee(filepath, extension, asset_basepath, asset_id):
+    assetId = '{}/{}'.format(asset_basepath, asset_id)
     task_id = ee.data.newTaskId()[0]
     task_data = ee.data.startTableIngestion(
         request_id=task_id,

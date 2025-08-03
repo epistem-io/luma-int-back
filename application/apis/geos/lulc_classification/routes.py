@@ -134,7 +134,7 @@ def geos_lulc_classification_upload_training_dataset():
         #     filepath = process_zip(filepath, session_id, get_extension='shp')
         #     extension = 'shp'
         
-        results = gee_utils.import_file_to_ee('gs://{}/{}'.format(current_app.config.get('GCS_BUCKET_NAME'), filepath), extension=extension, asset_id=known_session.id)
+        results = gee_utils.import_file_to_ee('gs://{}/{}'.format(current_app.config.get('GCS_BUCKET_NAME'), filepath), extension=extension, asset_basepath=Settings.get_settings('GEE_ASSET_BASEPATH'), asset_id=known_session.id)
         if results['task_state'] != 'COMPLETED':
             raise AppMessageException('failed to import training dataset.')
 
