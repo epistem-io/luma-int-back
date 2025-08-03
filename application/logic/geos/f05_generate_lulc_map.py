@@ -103,7 +103,7 @@ def f05_generate_lulc_map(
         'NDWI': { 'NDWI': ['#8B4513', '#DAA520', '#FFFF00', '#ADFF2F', '#00FF00', '#00FFFF', '#0000FF', '#000080'] },
         'Training Points': { 'Training Points': '#0000FF' },
         'Validation Points': { 'Validation Points': '#FFA500' },
-        'Land Cover Classification (2018)': {n: land_cover_palette[i] for i, n in enumerate(land_cover_names)},
+        'Land Cover Classification (2018)': { 'Land Cover Classification (2018)': [{n: land_cover_palette[i]} for i, n in enumerate(land_cover_names)] },
     }
 
     return { 'message': 'success', 'layers': layers, 'results': results, 'legends': legend_dict }
