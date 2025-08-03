@@ -97,12 +97,12 @@ def f05_generate_lulc_map(
     
     
     legend_dict = {
-        'Area of Interest (AOI)': { 'Area of Interest (AOI)': '#FF0000' },
-        'Composite (RGB)': { 'Composite (RGB)': '#FFFFFF' },
-        'NDVI': { 'NDVI': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9641'] },
-        'NDWI': { 'NDWI': ['#8B4513', '#DAA520', '#FFFF00', '#ADFF2F', '#00FF00', '#00FFFF', '#0000FF', '#000080'] },
-        'Training Points': { 'Training Points': '#0000FF' },
-        'Validation Points': { 'Validation Points': '#FFA500' },
+        'Area of Interest (AOI)': [{ 'Area of Interest (AOI)': '#FF0000' }],
+        'Composite (RGB)': [{ 'Composite (RGB)': '#FFFFFF' }],
+        'NDVI': [{ 'NDVI': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9641'] }],
+        'NDWI': [{ 'NDWI': ['#8B4513', '#DAA520', '#FFFF00', '#ADFF2F', '#00FF00', '#00FFFF', '#0000FF', '#000080'] }],
+        'Training Points': [{ 'Training Points': '#0000FF' }],
+        'Validation Points': [{ 'Validation Points': '#FFA500' }],
         'Land Cover Classification (2018)': [{n: land_cover_palette[i]} for i, n in enumerate(land_cover_names)],
     }
 
