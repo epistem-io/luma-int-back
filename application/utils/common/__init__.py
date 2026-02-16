@@ -16,6 +16,8 @@ import uuid
 import pathlib
 import shutil
 import zipfile
+import re
+import json
 
 from .handler import *
 
@@ -103,7 +105,7 @@ def remove_tree_file(*paths):
     if os.path.isdir(folder):
         shutil.rmtree(folder)
 
-def save_uploaded_file(folder_name, file):
+def save_uploaded_file(folder_name, file, skip_gcs=False):
     filepath = os.path.join(upload_folder, folder_name)
     if not os.path.exists(filepath):
         os.makedirs(filepath)
@@ -111,7 +113,9 @@ def save_uploaded_file(folder_name, file):
     fullpath = os.path.join(filepath, secure_filename(file.filename))
     file.save(fullpath)
 
-    gcs.upload(fullpath)
+    fullpath = fullpath.replace('\\', '/') # rip windows
+    if not skip_gcs:
+        gcs.upload(fullpath)
     
     return fullpath
 
@@ -129,7 +133,7 @@ def get_file_extension(file):
     extension = file.filename.rsplit('.', 1)[1].lower()
     return extension
 
-def process_zip(filepath, parent_folder, get_extension='shp'):
+def process_zip(filepath, parent_folder, get_extension='shp', skip_gcs=False):
     extracted_filepath = os.path.join(upload_folder, parent_folder, 'temp_zip_extraction')
     os.makedirs(extracted_filepath, exist_ok=True)
 
@@ -144,11 +148,21 @@ def process_zip(filepath, parent_folder, get_extension='shp'):
                 fullpath = os.path.join(root, file)
                 if not file.startswith('.') and file.endswith(get_extension):
                     filename = fullpath
-                gcs.upload(fullpath)
+                if not skip_gcs:
+                    gcs.upload(fullpath)
         if not filename:
             raise AppMessageException('No .{} file found in the ZIP file.'.format(get_extension))
         
         return filename
     except Exception as e:
         raise AppMessageException('Failed to process ZIP file')
-        
+
+def is_valid_hex_color(value: str) -> bool:
+    return bool(re.fullmatch(r"#(?:[0-9a-fA-F]{3}){1,2}", value))
+
+def get_json(s: str):
+    try:
+        return json.loads(s)
+    except Exception as e:
+        print('error when load json: ', str(e))
+        return None

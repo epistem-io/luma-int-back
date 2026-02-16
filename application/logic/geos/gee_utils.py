@@ -438,6 +438,9 @@ def import_file_to_ee(filepath, extension, asset_basepath, asset_id):
     
     return { 'asset_id': assetId, 'task_id': task_id, 'task_state': task_state }
 
+def get_task_status(task_id):
+    return ee.data.getTaskStatus(task_id)[0]
+
 # def feature_collection_to_assets(fc, asset_id):
 #     assetId = 'projects/staging-scene-428902/assets/{}'.format(asset_id)
 #     task = ee.batch.Export.table.toAsset(

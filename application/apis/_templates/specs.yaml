@@ -1,0 +1,748 @@
+info:
+  title: Luma Backend API Docs
+  version: 0.0.0
+  description: >-
+    Welcome to the **Luma Backend API documentation**. This API provides a
+    simple, secure, and efficient way to interact with **your platform's data,
+    services, or tools**.
+
+    Designed for developers, system integrators, and partners, our API enables
+    you to automate tasks, integrate with third-party services, and build
+    powerful applications on top of the **Luma Backend platform**.
+tags:
+  - name: User module
+    description: The User Module provides all endpoints and operations related to
+      user management within the system. It handles user registration,
+      authentication, profile management, and access control. Through this
+      module, developers can create, read, update, and delete user data
+      securely, as well as manage user roles and permissions.
+  - name: Geos module
+    description: The Geos Module provides all endpoints and operations related to
+      geo spatial within the system.
+  - name: Luma module
+    description: The Luma Module provides all endpoints and operations related to
+      luma within the system.
+paths:
+  /api/v1/users/me:
+    get:
+      tags:
+        - User module
+      summary: me
+      security:
+        - Authorization: []
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: get current logged in user information
+      operationId: me
+  /api/v1/geos/aoi:
+    post:
+      operationId: aoiPost
+      tags:
+        - Geos module
+      summary: aoi post
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  data:
+                    $ref: "#/components/schemas/Aoi"
+                  geometry:
+                    $ref: "#/components/schemas/Geometry"
+                required:
+                  - message
+                  - data
+                  - geometry
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: post area of interests
+      requestBody:
+        required: true
+        description: ""
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+                geometry:
+                  $ref: "#/components/schemas/Geometry"
+              required:
+                - session_id
+                - geometry
+  /api/v1/geos/aoi/upload:
+    post:
+      operationId: aoiUpload
+      tags:
+        - Geos module
+      summary: aoi upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - session_id
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload.
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  data:
+                    $ref: "#/components/schemas/Aoi"
+                  geometry:
+                    $ref: "#/components/schemas/Geometry"
+                required:
+                  - message
+                  - data
+                  - geometry
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: upload area of interests
+  /api/v1/luma/image-mosaic:
+    get:
+      operationId: imageMosaicGet
+      tags:
+        - Luma module
+      summary: image mosaic get
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  layers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          examples:
+                            - Composite - Land/Water (NIR/SWIR1/RED)
+                        url:
+                          type: string
+                          examples:
+                            - https://earthengine.googleapis.com/v1/projects/epistem/maps/ac3467220333f851ced1935db1e86067-1c02bae11368ada8cd2dc2ae2710f526/tiles/{z}/{x}/{y}
+                      required:
+                        - name
+                        - url
+                required:
+                  - message
+                  - layers
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters:
+        - $ref: "#/components/parameters/session_id"
+        - in: query
+          name: start_date
+          required: false
+          style: form
+          description: ""
+          explode: true
+          schema:
+            type: string
+            examples:
+              - 2020-01-01
+          allowReserved: false
+        - in: query
+          name: end_date
+          required: false
+          style: form
+          description: ""
+          explode: true
+          schema:
+            type: string
+            examples:
+              - 2020-12-31
+          allowReserved: false
+      description: get image mosaic earth engine layers
+  /api/v1/luma/lulc-classes:
+    post:
+      operationId: lulcClassUpdate
+      tags:
+        - Luma module
+      summary: lulc class update
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  data:
+                    type: object
+                required:
+                  - message
+                  - data
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      requestBody:
+        required: true
+        description: ""
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+                classes:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        examples:
+                          - 1
+                      class:
+                        type: string
+                        examples:
+                          - Permukiman
+                      color:
+                        type: string
+                        description: "#006400"
+                        examples:
+                          - "006400"
+                    required:
+                      - id
+                      - class
+                      - color
+              required:
+                - session_id
+                - classes
+      parameters: []
+      description: define lulc class schema, supposedly step-2
+    delete:
+      operationId: lulcClassReset
+      tags:
+        - Luma module
+      summary: lulc class reset
+      parameters:
+        - $ref: "#/components/parameters/session_id"
+      description: reset lulc class schema, supposedly step-2
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  data:
+                    type: object
+                required:
+                  - message
+                  - data
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+  /api/v1/luma/lulc-classes/upload:
+    post:
+      operationId: lulcClassUpload
+      tags:
+        - Luma module
+      summary: lulc class upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - session_id
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload.
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  data:
+                    type: object
+                required:
+                  - message
+                  - data
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: upload lulc class schema
+  /api/v1/luma/training-data:
+    post:
+      operationId: trainingDataPost
+      tags:
+        - Luma module
+      summary: training data post
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  data:
+                    type: object
+                required:
+                  - message
+                  - data
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: append training data, supposedly step-3
+      requestBody:
+        required: true
+        description: ""
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+                training_data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      class_id:
+                        type: integer
+                        examples:
+                          - 1
+                      geometry:
+                        $ref: "#/components/schemas/Geometry"
+                    required:
+                      - class_id
+                      - geometry
+              required:
+                - session_id
+                - training_data
+    delete:
+      operationId: trainingDataReset
+      tags:
+        - Luma module
+      summary: training data reset
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  data:
+                    type: object
+                required:
+                  - message
+                  - data
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters:
+        - $ref: "#/components/parameters/session_id"
+      description: reset training data, supposedly step-3
+  /api/v1/luma/training-data/upload:
+    post:
+      operationId: trainingDataUpload
+      tags:
+        - Luma module
+      summary: training data upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - session_id
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload.
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  data:
+                    type: object
+                required:
+                  - message
+                  - data
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: upload training data, supposedly step-3
+openapi: 3.1.0
+servers:
+  - url: http://someserversurl.com
+    description: base url
+components:
+  schemas:
+    Account:
+      type: object
+      required:
+        - email
+        - password
+        - fullname
+        - id
+        - is_admin
+      properties:
+        id:
+          type: string
+          examples:
+            - ad300364-1684-4be3-9052-a61a6d897ae9
+        email:
+          type: string
+          examples:
+            - dev@mail.com
+        fullname:
+          type: string
+          examples:
+            - Dev
+        is_admin:
+          type: boolean
+        password:
+          type: string
+          examples:
+            - hashed
+      description: user account models
+    FailedResponse:
+      type: object
+      required:
+        - stack
+        - trace
+        - success
+        - error
+      properties:
+        error:
+          $ref: "#/components/schemas/FailedErrorEnum"
+        stack:
+          type: array
+          items:
+            $ref: "#/components/schemas/FailedErrorStack"
+        trace:
+          type: string
+          examples:
+            - please provide json data
+        success:
+          type: boolean
+      description: base models for failed requests
+    FailedErrorEnum:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          enum:
+            - ERR_VALIDATION
+            - ERR_UNAUTHORIZED
+            - ERR_FORBIDDEN
+            - ERR_NOT_FOUND
+            - ERR_INTERNAL
+          type: string
+          examples:
+            - ERR_VALIDATION
+        message:
+          enum:
+            - Invalid input data
+            - Unauthorized
+            - Forbidden
+            - Resource not found
+            - Internal server error
+          type: string
+          examples:
+            - Invalid input data
+      description: error enum for failed response
+    SuccessResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+      description: success
+    FailedErrorStack:
+      type: object
+      required:
+        - message
+        - field
+        - row
+      properties:
+        row:
+          type: number
+          examples:
+            - 0
+        field:
+          type: string
+          examples:
+            - name
+        message:
+          type: string
+          examples:
+            - name is required
+      description: error stack base models for failed requests
+    Geometry:
+      type: object
+      properties:
+        coordinates:
+          type: array
+          items:
+            type: number
+            format: float
+            examples:
+              - 103.87751306931533
+        type:
+          type: string
+          examples:
+            - Point
+            - Polygon
+            - Multipolygon
+      required:
+        - coordinates
+        - type
+      description: ""
+    Aoi:
+      type: object
+      properties:
+        id:
+          type: integer
+          examples:
+            - 1
+        area_size:
+          type: number
+          examples:
+            - 22.55
+        session_id:
+          type: string
+          examples:
+            - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+        created_date:
+          type: string
+          examples:
+            - 2025-10-12T11:01:55.359868
+        modified_date:
+          type: string
+          examples:
+            - 2025-10-12T11:01:55.359868
+      required:
+        - id
+        - area_size
+        - session_id
+        - created_date
+        - modified_date
+      description: Area of Interests
+  responses:
+    No Auth:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FailedResponse"
+      description: The server encountered the client's request to an API lacks valid
+        authentication credentials. This specifically means that the API key
+        provided is either missing, invalid, or does not grant the necessary
+        permissions to access the requested resource.
+    Bad Request:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FailedResponse"
+      description: The server could not understand the request due to invalid syntax.
+        The client should modify the request and try again.
+    Internal Server Error:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FailedResponse"
+      description: The server encountered an unexpected condition that prevented it
+        from fulfilling the request. Report the issue to the support team if it
+        persists.
+  parameters:
+    id:
+      in: query
+      name: id
+      style: form
+      schema:
+        type: string
+        examples:
+          - c6276049-3d5f-4396-933a-a0318b2b2e09
+      explode: true
+      required: true
+      description: "id, sample: `c6276049-3d5f-4396-933a-a0318b2b2e09`"
+      allowReserved: false
+    keywords:
+      in: query
+      name: keywords
+      style: form
+      schema:
+        type: string
+        examples:
+          - asd
+      explode: true
+      description: string to search
+      allowReserved: false
+      allowEmptyValue: false
+    search_by:
+      in: query
+      name: search_by
+      style: form
+      schema:
+        type: string
+        examples:
+          - name
+      explode: true
+      description: field to search
+      allowReserved: false
+      allowEmptyValue: false
+    session_id:
+      in: query
+      name: session_id
+      required: false
+      style: form
+      description: ""
+      explode: true
+      schema:
+        type: string
+        examples:
+          - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+      allowReserved: false
+  securitySchemes:
+    Authorization:
+      in: header
+      name: Authorization
+      type: apiKey
+      description: 'Key Auth: Requests contain a valid **API Key** in the request
+        `"Authorization"` headers. The format of the API Key should be like `ACT
+        <api_key>`'

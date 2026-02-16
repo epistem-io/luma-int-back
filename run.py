@@ -33,4 +33,4 @@ def user_loaded_from_request(self, user=None):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=20500)
+    app.run(host='0.0.0.0', port=20500, use_reloader=False)

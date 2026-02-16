@@ -2,6 +2,7 @@
 import ee
 from application import db
 from application.models.geos import Aoi
+from application.models.master import Settings
 
 from shapely.geometry import shape
 from shapely.wkt import dumps as shapely_to_wkt
@@ -24,6 +25,11 @@ from shapely.geometry import shape
 from fiona.drvsupport import supported_drivers
 
 from application.utils.common import AppMessageException, remove_tree_file
+
+from luma_ge.input_utils import shapefile_validator, EE_converter
+
+validate = shapefile_validator(verbose=True)
+converter = EE_converter(verbose=True)
 
 def aoi(known_session, geometry):
     geometry = ee.Geometry(geometry)
@@ -73,23 +79,32 @@ def process_zip_and_get_polygon(filepath, session_id, upload_folder):
 
         # check if crs epsg != 4326 return error
         aoi = gpd.read_file(filename)
-        aoi = aoi.to_crs(4326)
-        """ 
-        gdf = gpd.read_file(filename)
-        gdf = gdf.dissolve()
-        gdf = gdf.explode(index_parts=True).iloc[[0]]
-        gdf4326 = gdf.to_crs(4326)
-        _drop_z = lambda geom: wkb.loads(wkb.dumps(geom, output_dimension=2))
-        gdf4326.geometry = gdf4326.geometry.transform(_drop_z) 
-        """
-        aoi_union = aoi.unary_union
-        aoi_union_proj = gpd.GeoDataFrame(geometry=[aoi_union])
-        # print(aoi_union_proj.geometry.transform)
-        _drop_z = lambda geom: wkb.loads(wkb.dumps(geom, output_dimension=2))
-        # aoi_union_proj.geometry = aoi_union_proj.geometry.transform(_drop_z)
-        aoi_union_proj["geometry"] = aoi_union_proj["geometry"].apply(_drop_z)
+        # aoi = aoi.to_crs(4326)
+        # """ 
+        # gdf = gpd.read_file(filename)
+        # gdf = gdf.dissolve()
+        # gdf = gdf.explode(index_parts=True).iloc[[0]]
+        # gdf4326 = gdf.to_crs(4326)
+        # _drop_z = lambda geom: wkb.loads(wkb.dumps(geom, output_dimension=2))
+        # gdf4326.geometry = gdf4326.geometry.transform(_drop_z) 
+        # """
+        # aoi_union = aoi.unary_union
+        # aoi_union_proj = gpd.GeoDataFrame(geometry=[aoi_union])
+        # # print(aoi_union_proj.geometry.transform)
+        # _drop_z = lambda geom: wkb.loads(wkb.dumps(geom, output_dimension=2))
+        # # aoi_union_proj.geometry = aoi_union_proj.geometry.transform(_drop_z)
+        # aoi_union_proj["geometry"] = aoi_union_proj["geometry"].apply(_drop_z)
 
-        return aoi_union_proj.to_json()
+        gdf_cleaned = validate.validate_and_fix_geometry(aoi)
+        if gdf_cleaned is None:
+            raise AppMessageException('Validasi geometri gagal.')
+        
+        # aoi = converter.convert_aoi_gdf(gdf_cleaned)
+        # if aoi is None:
+        #     raise AppMessageException('Gagal memuat wilayah kajian ke server')
+        
+        return gdf_cleaned.to_json()
+        # return aoi_union_proj.to_json()
     except Exception as e:
         raise e
     finally:
@@ -161,3 +176,16 @@ def process_kmz_and_get_polygon(filepath, session_id, upload_folder):
         raise e
     finally:
         remove_tree_file(upload_folder, session_id)
+
+def get_ee_aoi(session_id):
+    known_aoi = Aoi.query.filter_by(session_id=session_id).first()
+    if not known_aoi:
+        raise AppMessageException('aoi not found')
+    
+    max_draw_area = Settings.get_settings('MAX_DRAW_AREA')
+    if known_aoi.area_size > int(max_draw_area):
+        raise AppMessageException('draw area exceeds maximum limit')
+    
+    aoi = wkb_to_ee_geometry(str(known_aoi.geom))
+    
+    return aoi
