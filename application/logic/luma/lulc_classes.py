@@ -1,6 +1,8 @@
 import pandas as pd
 
-from application import db, current_app
+from flask import current_app
+
+from application import db
 from application.models.luma import LulcClass
 from application.utils.common import AppMessageException, is_valid_hex_color, ErrorCodeEnum
 
