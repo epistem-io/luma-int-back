@@ -1,6 +1,6 @@
 import pandas as pd
 
-from application import db
+from application import db, current_app
 from application.models.luma import LulcClass
 from application.utils.common import AppMessageException, is_valid_hex_color, ErrorCodeEnum
 
@@ -12,6 +12,7 @@ def process(known_session, classes, file, extension):
             elif extension == 'xlsx' or extension == 'xls':
                 df = pd.read_excel(file, usecols=range(3))
         except Exception as e:
+            current_app.logger.error('failed to read lulc classes file: {}'.format(str(e)))
             raise AppMessageException('failed to read file', error=ErrorCodeEnum.ERR_VALIDATION)
 
         df.columns = ['id', 'class', 'color']
