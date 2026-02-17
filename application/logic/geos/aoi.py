@@ -24,7 +24,7 @@ from shapely.ops import unary_union
 from shapely.geometry import shape
 from fiona.drvsupport import supported_drivers
 
-from application.utils.common import AppMessageException, remove_tree_file
+from application.utils.common import AppMessageException, remove_tree_file, ErrorCodeEnum
 
 from luma_ge.input_utils import shapefile_validator, EE_converter
 
@@ -75,7 +75,7 @@ def process_zip_and_get_polygon(filepath, session_id, upload_folder):
                 if not file.startswith('.') and file.endswith('.shp'):
                     filename = os.path.join(root, file)
         if not filename:
-            raise AppMessageException('No .shp file found in the ZIP file.')
+            raise AppMessageException('No .shp file found in the ZIP file.', error=ErrorCodeEnum.ERR_VALIDATION)
 
         # check if crs epsg != 4326 return error
         aoi = gpd.read_file(filename)
@@ -97,11 +97,11 @@ def process_zip_and_get_polygon(filepath, session_id, upload_folder):
 
         gdf_cleaned = validate.validate_and_fix_geometry(aoi)
         if gdf_cleaned is None:
-            raise AppMessageException('Validasi geometri gagal.')
+            raise AppMessageException('Validasi geometri gagal.', error=ErrorCodeEnum.ERR_VALIDATION)
         
         # aoi = converter.convert_aoi_gdf(gdf_cleaned)
         # if aoi is None:
-        #     raise AppMessageException('Gagal memuat wilayah kajian ke server')
+        #     raise AppMessageException('Gagal memuat wilayah kajian ke server', error=ErrorCodeEnum.ERR_VALIDATION)
         
         return gdf_cleaned.to_json()
         # return aoi_union_proj.to_json()
@@ -167,7 +167,7 @@ def process_kmz_and_get_polygon(filepath, session_id, upload_folder):
                 if not file.startswith('.') and file.endswith('.kml'):
                     filename = os.path.join(root, file)
         if not filename:
-            raise AppMessageException('No .kml file found in the ZIP file.')
+            raise AppMessageException('No .kml file found in the ZIP file.', error=ErrorCodeEnum.ERR_VALIDATION)
 
         gdf4326 = process_kml_and_get_polygon(filename, session_id, upload_folder)
 
@@ -180,11 +180,11 @@ def process_kmz_and_get_polygon(filepath, session_id, upload_folder):
 def get_ee_aoi(session_id):
     known_aoi = Aoi.query.filter_by(session_id=session_id).first()
     if not known_aoi:
-        raise AppMessageException('aoi not found')
+        raise AppMessageException('aoi not found', error=ErrorCodeEnum.ERR_VALIDATION)
     
     max_draw_area = Settings.get_settings('MAX_DRAW_AREA')
     if known_aoi.area_size > int(max_draw_area):
-        raise AppMessageException('draw area exceeds maximum limit')
+        raise AppMessageException('draw area exceeds maximum limit', error=ErrorCodeEnum.ERR_VALIDATION)
     
     aoi = wkb_to_ee_geometry(str(known_aoi.geom))
     

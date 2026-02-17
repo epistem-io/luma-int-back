@@ -2,8 +2,7 @@ import pandas as pd
 
 from application import db
 from application.models.luma import LulcClass
-from application.utils.common import AppMessageException, is_valid_hex_color
-
+from application.utils.common import AppMessageException, is_valid_hex_color, ErrorCodeEnum
 
 def process(known_session, classes, file, extension):
     if file:
@@ -13,7 +12,7 @@ def process(known_session, classes, file, extension):
             elif extension == 'xlsx' or extension == 'xls':
                 df = pd.read_excel(file, usecols=range(3))
         except Exception as e:
-            raise AppMessageException('failed to read file')
+            raise AppMessageException('failed to read file', error=ErrorCodeEnum.ERR_VALIDATION)
 
         df.columns = ['id', 'class', 'color']
         classes = df.to_dict('records')
@@ -26,13 +25,13 @@ def process(known_session, classes, file, extension):
 def validate_classes(classes):
     print(classes)
     if not classes:
-        raise AppMessageException('please input: lulc classes list')
+        raise AppMessageException('please input: lulc classes list', error=ErrorCodeEnum.ERR_VALIDATION)
 
     if type(classes) != list:
-        raise AppMessageException('invalid input: lulc classes, must be list')
+        raise AppMessageException('invalid input: lulc classes, must be list', error=ErrorCodeEnum.ERR_VALIDATION)
 
-    if len(classes) > 1000:
-        raise AppMessageException('invalid input: lulc classes')
+    if len(classes) > 10000:
+        raise AppMessageException('invalid input: lulc classes max 10000 classes', error=ErrorCodeEnum.ERR_VALIDATION)
 
 
 def delete(known_session, commit=False):
@@ -51,16 +50,16 @@ def iterate_classes(known_session, classes):
         try:
             class_id = int(class_id)
         except ValueError:
-            raise AppMessageException('invalid input: lulc classes, id must be integer')
+            raise AppMessageException('invalid input: lulc classes, id must be integer', error=ErrorCodeEnum.ERR_VALIDATION)
         
         class_name = str(class_name)
         class_color = str(class_color)
 
         if not class_name:
-            raise AppMessageException('invalid input: lulc classes, class name must not be empty')
+            raise AppMessageException('invalid input: lulc classes, class name must not be empty', error=ErrorCodeEnum.ERR_VALIDATION)
         
         if not is_valid_hex_color(class_color):
-            raise AppMessageException('invalid input: lulc classes, color must be valid hex color')
+            raise AppMessageException('invalid input: lulc classes, color must be valid hex color', error=ErrorCodeEnum.ERR_VALIDATION)
         
         known_class = LulcClass()
         known_class.session_id = known_session.id

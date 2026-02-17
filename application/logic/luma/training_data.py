@@ -2,7 +2,7 @@ import geopandas as gpd
 
 from application import db
 from application.models.luma import LulcClass, TrainingData
-from application.utils.common import AppMessageException
+from application.utils.common import AppMessageException, ErrorCodeEnum
 
 from shapely.geometry import shape, mapping
 from geoalchemy2.shape import from_shape, to_shape
@@ -10,10 +10,10 @@ from geoalchemy2.shape import from_shape, to_shape
 
 def process(known_session, input_data):
     if type(input_data) != list:
-        raise AppMessageException('invalid input: training data must be list')
+        raise AppMessageException('invalid input: training data must be list', error=ErrorCodeEnum.ERR_VALIDATION)
 
     if len(input_data) == 0:
-        raise AppMessageException('invalid input: training data must not be empty')
+        raise AppMessageException('invalid input: training data must not be empty', error=ErrorCodeEnum.ERR_VALIDATION)
 
     reference_set, reference_dict_id, reference_dict_name = get_current_class_scheme(known_session)
     
@@ -23,10 +23,10 @@ def process(known_session, input_data):
         geom = d.get('geometry')
 
         if class_id is None or not geom:
-            raise AppMessageException('invalid input: training data must contain class_id and geom')
+            raise AppMessageException('invalid input: training data must contain class_id and geom', error=ErrorCodeEnum.ERR_VALIDATION)
         
         if class_id not in reference_dict_id:
-            raise AppMessageException('invalid input: class_id not found in reference class')
+            raise AppMessageException('invalid input: class_id not found in reference class', error=ErrorCodeEnum.ERR_VALIDATION)
         
         geom = shape(geom)
         
@@ -59,7 +59,7 @@ def process_file(known_session, aoi, filepath):
     print(f"Identified Column: {target_field} ({confidence:.1%} match rate)")
 
     if confidence < 1.0:
-        raise AppMessageException('not all of the class is match with the reference class')
+        raise AppMessageException('not all of the class is match with the reference class', error=ErrorCodeEnum.ERR_VALIDATION)
     
     reference_dict_type = 'id'
     if reference_dict_name.get(gdf[target_field].iloc[0]):

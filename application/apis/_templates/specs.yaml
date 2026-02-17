@@ -216,7 +216,7 @@ paths:
             examples:
               - 2020-12-31
           allowReserved: false
-      description: get image mosaic earth engine layers
+      description: get image mosaic earth engine layers, supposedly step-1
   /api/v1/luma/lulc-classes:
     post:
       operationId: lulcClassUpdate
@@ -370,7 +370,7 @@ paths:
       operationId: trainingDataPost
       tags:
         - Luma module
-      summary: training data post
+      summary: training data update
       responses:
         "200":
           content:

@@ -3,7 +3,7 @@ import ee
 from application import db
 from application.models.user import Session
 from flask_login import current_user
-from application.utils.common import AppMessageException
+from application.utils.common import AppMessageException, ErrorCodeEnum
 
 def init_session(session_id):
     known_session = get_session(session_id)
@@ -22,5 +22,5 @@ def init_session(session_id):
 def get_session(session_id, validate=False):
     known_session = Session.query.filter_by(id=session_id).first()
     if validate and not known_session:
-        raise AppMessageException('session not found.')
+        raise AppMessageException('session not found.', error=ErrorCodeEnum.ERR_VALIDATION)
     return known_session
