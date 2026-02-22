@@ -16,7 +16,7 @@ import arrow
 # logic
 from application.logic.geos import aoi as aoi_logic
 from application.logic.user import session as session_logic
-from application.logic.luma import image_mosaic, lulc_classes, training_data
+from application.logic.luma import image_mosaic, lulc_classes, training_data, test
 from application.logic.geos import gee_utils
 
 # utils
@@ -70,6 +70,8 @@ def generate_image_mosaic():
     
     aoi = aoi_logic.get_ee_aoi(session_id)
 
+    # test.test_load_training_data(aoi)
+
     layers = image_mosaic.generate(aoi, start_date, end_date, landsat_version, cloud_cover)
 
     results = {
@@ -96,11 +98,11 @@ def define_lulc_classes():
     
     known_session = session_logic.get_session(session_id, validate=True)
 
-    lulc_classes.process(known_session, classes, None, None)
+    classes = lulc_classes.process(known_session, classes, None, None)
     
     results = {
         'message': 'success',
-        'data': { }
+        'classes': classes
     }
 
     return make_response(jsonify(success_handler(results)), 200)
@@ -120,11 +122,11 @@ def lulc_classes_upload():
     extension = check_file(file, {'csv', 'xlsx', 'xls'})
     known_session = session_logic.get_session(session_id, validate=True)
 
-    lulc_classes.process(known_session, None, file, extension)
+    classes = lulc_classes.process(known_session, None, file, extension)
     
     results = {
         'message': 'success',
-        'data': { }
+        'classes': classes
     }
 
     return make_response(jsonify(success_handler(results)), 200)

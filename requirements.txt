@@ -124,3 +124,4 @@ widgetsnbextension==4.0.14
 WTForms==3.2.1
 xyzservices==2025.4.0
 luma_ge @ git+https://github.com/epistem-io/luma-stack.git
+openpyxl

@@ -22,7 +22,8 @@ def process(known_session, classes, file, extension):
     
     validate_classes(classes)
     delete(known_session)
-    iterate_classes(known_session, classes)
+    
+    return iterate_classes(known_session, classes)
     
 
 def validate_classes(classes):
@@ -45,6 +46,7 @@ def delete(known_session, commit=False):
 
 def iterate_classes(known_session, classes):
     all_classes = []
+    all_classes_dict = []
     for cls in classes:
         class_id = cls.get('id')
         class_name = cls.get('class')
@@ -70,6 +72,9 @@ def iterate_classes(known_session, classes):
         known_class.class_name = class_name
         known_class.class_color = class_color
         all_classes.append(known_class)
+        all_classes_dict.append(known_class.to_json())
     
     db.session.add_all(all_classes)
     db.session.commit()
+
+    return all_classes_dict

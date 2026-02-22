@@ -23,6 +23,58 @@ tags:
     description: The Luma Module provides all endpoints and operations related to
       luma within the system.
 paths:
+  /api/v1/geos/aoi:
+    post:
+      tags:
+        - Geos module
+      summary: aoi post
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - data
+                  - geometry
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Aoi"
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  geometry:
+                    $ref: "#/components/schemas/Geometry"
+                title: AoiPostOk
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: post area of interests
+      operationId: aoiPost
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - session_id
+                - geometry
+              properties:
+                geometry:
+                  $ref: "#/components/schemas/Geometry"
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+        required: true
+        description: ""
   /api/v1/users/me:
     get:
       tags:
@@ -46,31 +98,31 @@ paths:
       parameters: []
       description: get current logged in user information
       operationId: me
-  /api/v1/geos/aoi:
+  /api/v1/geos/aoi/upload:
     post:
-      operationId: aoiPost
       tags:
         - Geos module
-      summary: aoi post
+      summary: aoi upload
       responses:
         "200":
           content:
             application/json:
               schema:
                 type: object
-                properties:
-                  message:
-                    type: string
-                    examples:
-                      - success
-                  data:
-                    $ref: "#/components/schemas/Aoi"
-                  geometry:
-                    $ref: "#/components/schemas/Geometry"
                 required:
                   - message
                   - data
                   - geometry
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Aoi"
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  geometry:
+                    $ref: "#/components/schemas/Geometry"
+                title: AoiUploadOk
           description: Success
         "400":
           $ref: "#/components/responses/Bad Request"
@@ -79,30 +131,8 @@ paths:
         "500":
           $ref: "#/components/responses/Internal Server Error"
       parameters: []
-      description: post area of interests
-      requestBody:
-        required: true
-        description: ""
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                session_id:
-                  type: string
-                  examples:
-                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
-                geometry:
-                  $ref: "#/components/schemas/Geometry"
-              required:
-                - session_id
-                - geometry
-  /api/v1/geos/aoi/upload:
-    post:
+      description: upload area of interests
       operationId: aoiUpload
-      tags:
-        - Geos module
-      summary: aoi upload
       requestBody:
         content:
           multipart/form-data:
@@ -121,37 +151,8 @@ paths:
                   examples:
                     - b06e52c5-694d-4890-9a0e-ae9e4a581da5
         required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    examples:
-                      - success
-                  data:
-                    $ref: "#/components/schemas/Aoi"
-                  geometry:
-                    $ref: "#/components/schemas/Geometry"
-                required:
-                  - message
-                  - data
-                  - geometry
-          description: Success
-        "400":
-          $ref: "#/components/responses/Bad Request"
-        "401":
-          $ref: "#/components/responses/No Auth"
-        "500":
-          $ref: "#/components/responses/Internal Server Error"
-      parameters: []
-      description: upload area of interests
   /api/v1/luma/image-mosaic:
     get:
-      operationId: imageMosaicGet
       tags:
         - Luma module
       summary: image mosaic get
@@ -161,30 +162,31 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - message
+                  - layers
                 properties:
-                  message:
-                    type: string
-                    examples:
-                      - success
                   layers:
                     type: array
                     items:
                       type: object
+                      required:
+                        - name
+                        - url
                       properties:
-                        name:
-                          type: string
-                          examples:
-                            - Composite - Land/Water (NIR/SWIR1/RED)
                         url:
                           type: string
                           examples:
                             - https://earthengine.googleapis.com/v1/projects/epistem/maps/ac3467220333f851ced1935db1e86067-1c02bae11368ada8cd2dc2ae2710f526/tiles/{z}/{x}/{y}
-                      required:
-                        - name
-                        - url
-                required:
-                  - message
-                  - layers
+                        name:
+                          type: string
+                          examples:
+                            - Composite - Land/Water (NIR/SWIR1/RED)
+                  message:
+                    type: string
+                    examples:
+                      - success
+                title: ImageMosaicGetOk
           description: Success
         "400":
           $ref: "#/components/responses/Bad Request"
@@ -196,30 +198,30 @@ paths:
         - $ref: "#/components/parameters/session_id"
         - in: query
           name: start_date
-          required: false
           style: form
-          description: ""
-          explode: true
           schema:
             type: string
             examples:
               - 2020-01-01
+          explode: true
+          required: false
+          description: ""
           allowReserved: false
         - in: query
           name: end_date
-          required: false
           style: form
-          description: ""
-          explode: true
           schema:
             type: string
             examples:
               - 2020-12-31
+          explode: true
+          required: false
+          description: ""
           allowReserved: false
-      description: get image mosaic earth engine layers, supposedly step-1
+      description: get image mosaic earth engine layers
+      operationId: imageMosaicGet
   /api/v1/luma/lulc-classes:
     post:
-      operationId: lulcClassUpdate
       tags:
         - Luma module
       summary: lulc class update
@@ -229,16 +231,17 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - message
+                  - classes
                 properties:
                   message:
                     type: string
                     examples:
                       - success
-                  data:
-                    type: object
-                required:
-                  - message
-                  - data
+                  classes:
+                    $ref: "#/components/schemas/LulcClass"
+                title: LulcClassUpdateOk
           description: Success
         "400":
           $ref: "#/components/responses/Bad Request"
@@ -246,22 +249,26 @@ paths:
           $ref: "#/components/responses/No Auth"
         "500":
           $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: define lulc class schema, supposedly step-2
+      operationId: lulcClassUpdate
       requestBody:
-        required: true
-        description: ""
         content:
           application/json:
             schema:
               type: object
+              required:
+                - session_id
+                - classes
               properties:
-                session_id:
-                  type: string
-                  examples:
-                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
                 classes:
                   type: array
                   items:
                     type: object
+                    required:
+                      - id
+                      - class
+                      - color
                     properties:
                       id:
                         type: integer
@@ -273,89 +280,36 @@ paths:
                           - Permukiman
                       color:
                         type: string
-                        description: "#006400"
                         examples:
                           - "006400"
-                    required:
-                      - id
-                      - class
-                      - color
-              required:
-                - session_id
-                - classes
-      parameters: []
-      description: define lulc class schema, supposedly step-2
-    delete:
-      operationId: lulcClassReset
-      tags:
-        - Luma module
-      summary: lulc class reset
-      parameters:
-        - $ref: "#/components/parameters/session_id"
-      description: reset lulc class schema, supposedly step-2
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    examples:
-                      - success
-                  data:
-                    type: object
-                required:
-                  - message
-                  - data
-          description: Success
-        "400":
-          $ref: "#/components/responses/Bad Request"
-        "401":
-          $ref: "#/components/responses/No Auth"
-        "500":
-          $ref: "#/components/responses/Internal Server Error"
-  /api/v1/luma/lulc-classes/upload:
-    post:
-      operationId: lulcClassUpload
-      tags:
-        - Luma module
-      summary: lulc class upload
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-                - session_id
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: The file to upload.
+                        description: "#006400"
                 session_id:
                   type: string
                   examples:
                     - b06e52c5-694d-4890-9a0e-ae9e4a581da5
         required: true
+        description: ""
+    delete:
+      tags:
+        - Luma module
+      summary: lulc class reset
       responses:
         "200":
           content:
             application/json:
               schema:
                 type: object
+                required:
+                  - message
+                  - data
                 properties:
+                  data:
+                    type: object
                   message:
                     type: string
                     examples:
                       - success
-                  data:
-                    type: object
-                required:
-                  - message
-                  - data
+                title: LulcClassResetOk
           description: Success
         "400":
           $ref: "#/components/responses/Bad Request"
@@ -363,30 +317,32 @@ paths:
           $ref: "#/components/responses/No Auth"
         "500":
           $ref: "#/components/responses/Internal Server Error"
-      parameters: []
-      description: upload lulc class schema
+      parameters:
+        - $ref: "#/components/parameters/session_id"
+      description: reset lulc class schema, supposedly step-2
+      operationId: lulcClassReset
   /api/v1/luma/training-data:
     post:
-      operationId: trainingDataPost
       tags:
         - Luma module
-      summary: training data update
+      summary: training data post
       responses:
         "200":
           content:
             application/json:
               schema:
                 type: object
+                required:
+                  - message
+                  - data
                 properties:
+                  data:
+                    type: object
                   message:
                     type: string
                     examples:
                       - success
-                  data:
-                    type: object
-                required:
-                  - message
-                  - data
+                title: TrainingDataPostOk
           description: Success
         "400":
           $ref: "#/components/responses/Bad Request"
@@ -396,13 +352,15 @@ paths:
           $ref: "#/components/responses/Internal Server Error"
       parameters: []
       description: append training data, supposedly step-3
+      operationId: trainingDataPost
       requestBody:
-        required: true
-        description: ""
         content:
           application/json:
             schema:
               type: object
+              required:
+                - session_id
+                - training_data
               properties:
                 session_id:
                   type: string
@@ -412,6 +370,9 @@ paths:
                   type: array
                   items:
                     type: object
+                    required:
+                      - class_id
+                      - geometry
                     properties:
                       class_id:
                         type: integer
@@ -419,14 +380,9 @@ paths:
                           - 1
                       geometry:
                         $ref: "#/components/schemas/Geometry"
-                    required:
-                      - class_id
-                      - geometry
-              required:
-                - session_id
-                - training_data
+        required: true
+        description: ""
     delete:
-      operationId: trainingDataReset
       tags:
         - Luma module
       summary: training data reset
@@ -436,16 +392,17 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - message
+                  - data
                 properties:
+                  data:
+                    type: object
                   message:
                     type: string
                     examples:
                       - success
-                  data:
-                    type: object
-                required:
-                  - message
-                  - data
+                title: TrainingDataResetOk
           description: Success
         "400":
           $ref: "#/components/responses/Bad Request"
@@ -456,12 +413,39 @@ paths:
       parameters:
         - $ref: "#/components/parameters/session_id"
       description: reset training data, supposedly step-3
-  /api/v1/luma/training-data/upload:
+      operationId: trainingDataReset
+  /api/v1/luma/lulc-classes/upload:
     post:
-      operationId: trainingDataUpload
       tags:
         - Luma module
-      summary: training data upload
+      summary: lulc class upload
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - classes
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  classes:
+                    $ref: "#/components/schemas/LulcClass"
+                title: LulcClassUploadOk
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: upload lulc class schema
+      operationId: lulcClassUpload
       requestBody:
         content:
           multipart/form-data:
@@ -479,22 +463,29 @@ paths:
                   type: string
                   examples:
                     - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+        required: true
+  /api/v1/luma/training-data/upload:
+    post:
+      tags:
+        - Luma module
+      summary: training data upload
       responses:
         "200":
           content:
             application/json:
               schema:
                 type: object
+                required:
+                  - message
+                  - data
                 properties:
+                  data:
+                    type: object
                   message:
                     type: string
                     examples:
                       - success
-                  data:
-                    type: object
-                required:
-                  - message
-                  - data
+                title: TrainingDataUploadOk
           description: Success
         "400":
           $ref: "#/components/responses/Bad Request"
@@ -504,12 +495,60 @@ paths:
           $ref: "#/components/responses/Internal Server Error"
       parameters: []
       description: upload training data, supposedly step-3
+      operationId: trainingDataUpload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - session_id
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload.
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
 openapi: 3.1.0
 servers:
   - url: http://someserversurl.com
     description: base url
 components:
   schemas:
+    Aoi:
+      type: object
+      required:
+        - id
+        - area_size
+        - session_id
+        - created_date
+        - modified_date
+      properties:
+        id:
+          type: integer
+          examples:
+            - 1
+        area_size:
+          type: number
+          examples:
+            - 22.55
+        session_id:
+          type: string
+          examples:
+            - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+        created_date:
+          type: string
+          examples:
+            - 2025-10-12T11:01:55.359868
+        modified_date:
+          type: string
+          examples:
+            - 2025-10-12T11:01:55.359868
+      description: Area of Interests
     Account:
       type: object
       required:
@@ -538,6 +577,26 @@ components:
           examples:
             - hashed
       description: user account models
+    Geometry:
+      type: object
+      required:
+        - coordinates
+        - type
+      properties:
+        type:
+          type: string
+          examples:
+            - Point
+            - Polygon
+            - Multipolygon
+        coordinates:
+          type: array
+          items:
+            type: number
+            format: float
+            examples:
+              - 103.87751306931531
+      description: ""
     FailedResponse:
       type: object
       required:
@@ -614,56 +673,37 @@ components:
           examples:
             - name is required
       description: error stack base models for failed requests
-    Geometry:
+    LulcClass:
       type: object
       properties:
-        coordinates:
-          type: array
-          items:
-            type: number
-            format: float
-            examples:
-              - 103.87751306931533
-        type:
+        class_id:
+          type: integer
+          examples:
+            - 1
+        class_name:
           type: string
           examples:
-            - Point
-            - Polygon
-            - Multipolygon
-      required:
-        - coordinates
-        - type
-      description: ""
-    Aoi:
-      type: object
-      properties:
+            - Permukiman
+        class_color:
+          type: string
+          description: "#006400"
+          examples:
+            - "006400"
+        sesssion_id:
+          type: string
+          examples:
+            - b06e52c5-694d-4890-9a0e-ae9e4a581da5
         id:
           type: integer
           examples:
             - 1
-        area_size:
-          type: number
-          examples:
-            - 22.55
-        session_id:
-          type: string
-          examples:
-            - b06e52c5-694d-4890-9a0e-ae9e4a581da5
-        created_date:
-          type: string
-          examples:
-            - 2025-10-12T11:01:55.359868
-        modified_date:
-          type: string
-          examples:
-            - 2025-10-12T11:01:55.359868
       required:
+        - class_id
+        - class_name
+        - class_color
+        - sesssion_id
         - id
-        - area_size
-        - session_id
-        - created_date
-        - modified_date
-      description: Area of Interests
+      description: ""
   responses:
     No Auth:
       content:
@@ -729,14 +769,14 @@ components:
     session_id:
       in: query
       name: session_id
-      required: false
       style: form
-      description: ""
-      explode: true
       schema:
         type: string
         examples:
           - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+      explode: true
+      required: false
+      description: ""
       allowReserved: false
   securitySchemes:
     Authorization:
