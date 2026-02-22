@@ -240,7 +240,9 @@ paths:
                     examples:
                       - success
                   classes:
-                    $ref: "#/components/schemas/LulcClass"
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LulcClass"
                 title: LulcClassUpdateOk
           description: Success
         "400":
@@ -322,66 +324,6 @@ paths:
       description: reset lulc class schema, supposedly step-2
       operationId: lulcClassReset
   /api/v1/luma/training-data:
-    post:
-      tags:
-        - Luma module
-      summary: training data post
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - message
-                  - data
-                properties:
-                  data:
-                    type: object
-                  message:
-                    type: string
-                    examples:
-                      - success
-                title: TrainingDataPostOk
-          description: Success
-        "400":
-          $ref: "#/components/responses/Bad Request"
-        "401":
-          $ref: "#/components/responses/No Auth"
-        "500":
-          $ref: "#/components/responses/Internal Server Error"
-      parameters: []
-      description: append training data, supposedly step-3
-      operationId: trainingDataPost
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - session_id
-                - training_data
-              properties:
-                session_id:
-                  type: string
-                  examples:
-                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
-                training_data:
-                  type: array
-                  items:
-                    type: object
-                    required:
-                      - class_id
-                      - geometry
-                    properties:
-                      class_id:
-                        type: integer
-                        examples:
-                          - 1
-                      geometry:
-                        $ref: "#/components/schemas/Geometry"
-        required: true
-        description: ""
     delete:
       tags:
         - Luma module
@@ -414,6 +356,68 @@ paths:
         - $ref: "#/components/parameters/session_id"
       description: reset training data, supposedly step-3
       operationId: trainingDataReset
+    post:
+      tags:
+        - Luma module
+      summary: training data update
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - training_data
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  training_data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TrainingData"
+                title: TrainingDataPostOk
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: append training data, supposedly step-3
+      operationId: trainingDataUpdate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - session_id
+                - training_data
+              properties:
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+                training_data:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - class_id
+                      - geometry
+                    properties:
+                      class_id:
+                        type: integer
+                        examples:
+                          - 1
+                      geometry:
+                        $ref: "#/components/schemas/Geometry"
+        required: true
+        description: ""
   /api/v1/luma/lulc-classes/upload:
     post:
       tags:
@@ -434,7 +438,9 @@ paths:
                     examples:
                       - success
                   classes:
-                    $ref: "#/components/schemas/LulcClass"
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LulcClass"
                 title: LulcClassUploadOk
           description: Success
         "400":
@@ -477,14 +483,16 @@ paths:
                 type: object
                 required:
                   - message
-                  - data
+                  - training_data
                 properties:
-                  data:
-                    type: object
                   message:
                     type: string
                     examples:
                       - success
+                  training_data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TrainingData"
                 title: TrainingDataUploadOk
           description: Success
         "400":
@@ -703,6 +711,35 @@ components:
         - class_color
         - sesssion_id
         - id
+      description: ""
+    TrainingData:
+      type: object
+      properties:
+        class_id:
+          type: integer
+          examples:
+            - 1
+        class_name:
+          type: string
+          examples:
+            - Permukiman
+        class_color:
+          type: string
+          description: "#006400"
+          examples:
+            - "006400"
+        geometry:
+          $ref: "#/components/schemas/Geometry"
+        session_id:
+          type: string
+          examples:
+            - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+      required:
+        - class_id
+        - class_name
+        - class_color
+        - geometry
+        - session_id
       description: ""
   responses:
     No Auth:
