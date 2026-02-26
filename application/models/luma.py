@@ -27,8 +27,8 @@ class Luma(db.Model):
         
         return {
             'id': self.id,
-            'start_date': self.start_date,
-            'end_date': self.end_date,
+            'start_date': self.start_date.isoformat() if self.start_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None,
             'landsat_version': self.landsat_version,
             'cloud_cover': self.cloud_cover,
             'session_id': self.session_id,

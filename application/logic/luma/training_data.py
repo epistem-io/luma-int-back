@@ -8,6 +8,10 @@ from shapely.geometry import shape, mapping
 from geoalchemy2.shape import from_shape, to_shape
 
 
+def get(known_session):
+    return TrainingData.query.filter_by(session_id=known_session.id).all()
+
+
 def process(known_session, input_data):
     if type(input_data) != list:
         raise AppMessageException('invalid input: training data must be list', error=ErrorCodeEnum.ERR_VALIDATION)
@@ -150,3 +154,52 @@ def delete(known_session, commit=False):
     TrainingData.query.filter_by(session_id=known_session.id).delete()
     if commit:
         db.session.commit()
+
+
+def set_default_training_points(known_session):
+    query = '''
+    insert into luma_training_data (
+        session_id, class_id, class_name, class_color, 
+        geom, created_date, modified_date
+    )
+    select
+        :session_id session_id,
+        classes.class_id,
+        classes.class_name,
+        classes.class_color,
+        dt.geometry,
+        current_timestamp created_date,
+        current_timestamp modified_date
+    from geos_aoi aoi
+    left join data_training_indonesia_lulc dt on ST_Intersects(aoi.geom, dt.geometry)
+    left join luma_lulc_class classes on classes.session_id = :session_id and classes.class_id = dt.kelas
+    where aoi.session_id = :session_id and classes.class_id is not null
+    '''
+
+    db.session.execute(db.text(query), {'session_id': known_session.id})
+    db.session.commit()
+
+
+def get_summary(known_session):
+    query = (
+        db.select(
+            TrainingData.class_id,
+            TrainingData.class_name,
+            TrainingData.class_color,
+            db.func.count().label("count"),
+        )
+        .where(TrainingData.session_id == known_session.id)
+        .group_by(
+            TrainingData.class_id,
+            TrainingData.class_name,
+            TrainingData.class_color,
+        )
+        .order_by(TrainingData.class_id)
+    )
+    
+    return [{
+        'class_id': row.class_id,
+        'class_name': row.class_name,
+        'class_color': row.class_color,
+        'total_items': row.count
+    } for row in db.session.execute(query).all()]

@@ -16,7 +16,7 @@ import arrow
 # logic
 from application.logic.geos import aoi as aoi_logic
 from application.logic.user import session as session_logic
-from application.logic.luma import image_mosaic, lulc_classes, training_data, test
+from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map
 from application.logic.geos import gee_utils
 
 # utils
@@ -68,11 +68,13 @@ def generate_image_mosaic():
         if cloud_cover < 0 or cloud_cover > 50:
             raise AppMessageException('invalid input: cloud cover, format: positive number, max 50', error=ErrorCodeEnum.ERR_VALIDATION)
     
-    aoi = aoi_logic.get_ee_aoi(session_id)
+    known_session = session_logic.get_session(session_id, validate=True)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
 
     # test.test_load_training_data(aoi)
 
     layers = image_mosaic.generate(aoi, start_date, end_date, landsat_version, cloud_cover)
+    luma_logic.save_param(known_session, start_date, end_date, landsat_version, cloud_cover)
 
     results = {
         'message': 'success',
@@ -193,7 +195,7 @@ def training_data_upload():
     filepath = save_uploaded_file(session_id, file, skip_gcs=True)
     filepath = process_zip(filepath, session_id, get_extension='shp', skip_gcs=True)
 
-    aoi = aoi_logic.get_ee_aoi(session_id)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
     dt = training_data.process_file(known_session, aoi, filepath)
     
     remove_tree_file(upload_folder, known_session.id)
@@ -224,23 +226,72 @@ def training_data_delete():
     return make_response(jsonify(success_handler(results)), 200)
 
 
-
-@luma_apis_blueprint.route('/task-status/<task_id>', methods=['POST'])
+@luma_apis_blueprint.route('/input-summary', methods=['GET'])
 @cross_origin()
-def task_status_check(task_id):
-    g_var.__api_name__ = 'task_status_check'
-    g_var.__api_description__ = 'task_status_check'
+def get_luma_summary():
+    g_var.__api_name__ = 'get_luma_summary'
+    g_var.__api_description__ = 'get_luma_summary'
     
     data = request.args
-
     session_id = data.get('session_id', '')
-    session_logic.get_session(session_id, validate=True)
+
+    known_session = session_logic.get_session(session_id, validate=True)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
     
+    luma = luma_logic.get(known_session)
+    if not luma:
+        raise AppMessageException('luma params data (step-1) not found')
+
+    train_data = training_data.get(known_session)
+    if not train_data:
+        lulc_classes.set_default_classes(known_session)
+        training_data.set_default_training_points(known_session)
+    
+    train_data_summary = training_data.get_summary(known_session)
+
     results = {
         'message': 'success',
-        'status': gee_utils.get_task_status(task_id)
+        'data': {
+            'luma_params': luma.to_json(),
+            'training_data_summary': train_data_summary,
+            'aoi': known_aoi.to_json()
+        }
     }
 
     return make_response(jsonify(success_handler(results)), 200)
 
 
+@luma_apis_blueprint.route('/lulc-map', methods=['GET'])
+@cross_origin()
+def generate_lulc_map():
+    g_var.__api_name__ = 'generate_lulc_map'
+    g_var.__api_description__ = 'generate_lulc_map'
+    
+    data = request.args
+    session_id = data.get('session_id', '')
+
+    known_session = session_logic.get_session(session_id, validate=True)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
+    
+    luma = luma_logic.get(known_session)
+    if not luma:
+        raise AppMessageException('luma params data (step-1) not found')
+
+    train_data = training_data.get(known_session)
+    if not train_data:
+        lulc_classes.set_default_classes(known_session)
+        training_data.set_default_training_points(known_session)
+        train_data = training_data.get(known_session)
+    
+    classes = lulc_classes.get(known_session)
+    if not classes:
+        raise AppMessageException('classes data (step-2) not found')
+    
+    results = lulc_map.generate(known_session, known_aoi, aoi, luma, classes, train_data)
+
+    results = {
+        'message': 'success',
+        'results': results
+    }
+
+    return make_response(jsonify(success_handler(results)), 200)

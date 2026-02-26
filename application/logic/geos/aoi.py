@@ -188,4 +188,4 @@ def get_ee_aoi(session_id):
     
     aoi = wkb_to_ee_geometry(str(known_aoi.geom))
     
-    return aoi
+    return known_aoi, aoi

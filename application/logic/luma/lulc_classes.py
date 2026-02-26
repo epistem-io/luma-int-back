@@ -6,6 +6,11 @@ from application import db
 from application.models.luma import LulcClass
 from application.utils.common import AppMessageException, is_valid_hex_color, ErrorCodeEnum
 
+from luma_ge.classification_scheme import LULC_Scheme_Manager
+
+def get(known_session):
+    return LulcClass.query.filter_by(session_id=known_session.id).all()
+
 def process(known_session, classes, file, extension):
     if file:
         try:
@@ -78,3 +83,15 @@ def iterate_classes(known_session, classes):
     db.session.commit()
 
     return all_classes_dict
+
+
+def set_default_classes(known_session):
+    delete(known_session)
+    default_classes = LULC_Scheme_Manager.get_default_schemes()
+    default_classes = default_classes[list(default_classes.keys())[0]]
+    default_classes = [{
+        'id': n.get('ID'),
+        'class': n.get('Class Name'),
+        'color': n.get('Color Code')
+    } for n in default_classes]
+    return iterate_classes(known_session, default_classes)
