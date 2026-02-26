@@ -134,15 +134,11 @@ def generate(known_session, known_aoi, aoi, luma, classes, train_data):
         class_property=class_property
     )
 
-    unique_classes = {}
-    for idx, d in train_gdf.iterrows():
-        if not unique_classes.get(d['class_id']):
-            unique_classes[d['class_id']] = d['class_color']
-    
+    unique_df = train_gdf[['class_id', 'class_color']].drop_duplicates('class_id').sort_values('class_id')
     vis_params = {
-        'min': min(unique_classes.keys()),
-        'max': max(unique_classes.keys()),
-        'palette': [c for c in unique_classes.values()]
+        'min': int(unique_df['class_id'].min()),
+        'max': int(unique_df['class_id'].max()),
+        'palette': unique_df['class_color'].tolist()
     }
 
     
