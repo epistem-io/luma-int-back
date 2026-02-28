@@ -2,6 +2,7 @@
 from application import db
 from application.apis.luma import luma_apis_blueprint
 from flask import make_response, request, jsonify, current_app, g as g_var
+from flask import Response, stream_with_context
 from flask_login import current_user
 from flask_cors import cross_origin
 
@@ -281,17 +282,16 @@ def generate_lulc_map():
     if not train_data:
         lulc_classes.set_default_classes(known_session)
         training_data.set_default_training_points(known_session)
-        train_data = training_data.get(known_session)
     
     classes = lulc_classes.get(known_session)
     if not classes:
         raise AppMessageException('classes data (step-2) not found')
     
-    results = lulc_map.generate(known_session, known_aoi, aoi, luma, classes, train_data)
+    # results = lulc_map.generate(known_session, known_aoi, aoi, luma, classes)
 
-    results = {
-        'message': 'success',
-        'results': results
-    }
+    # results = {
+    #     'message': 'success',
+    #     'results': results
+    # }
 
-    return make_response(jsonify(success_handler(results)), 200)
+    return Response(stream_with_context(lulc_map.generate(known_session, known_aoi, aoi, luma, classes)), mimetype='application/x-ndjson')

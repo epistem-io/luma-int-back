@@ -98,6 +98,133 @@ paths:
       parameters: []
       description: get current logged in user information
       operationId: me
+  /api/v1/luma/lulc-map:
+    get:
+      tags:
+        - Luma module
+      summary: lulc map generate
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: LumaInputSummaryOk
+                required:
+                  - message
+                  - results
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+                  results:
+                    type: object
+                    required:
+                      - layers
+                      - importance
+                      - model_quality
+                      - lulc_composition
+                    properties:
+                      layers:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - url
+                            - name
+                          properties:
+                            url:
+                              type: string
+                              examples:
+                                - https://earthengine.googleapis.com/v1/projects/ee-epstm2024/maps/fdb1baf8b69e711636827dcee5a6a066-4793e995a6df89ee0be9e026e4ad767d/tiles/{z}/{x}/{y}
+                            name:
+                              type: string
+                              examples:
+                                - Land Cover Classification
+                      importance:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - Band
+                            - Importance
+                          properties:
+                            Band:
+                              type: string
+                              examples:
+                                - SWIR1
+                            Importance:
+                              type: number
+                              examples:
+                                - 35.6997246784049
+                      model_quality:
+                        type: object
+                        required:
+                          - average_f1_score
+                          - gmean_score
+                          - overall_accuracy
+                          - kappa
+                        properties:
+                          kappa:
+                            type: number
+                            examples:
+                              - 0.49999999999999983
+                          gmean_score:
+                            type: number
+                            examples:
+                              - 0.7476743906106103
+                          average_f1_score:
+                            type: number
+                            examples:
+                              - 0.0943181818181818
+                          overall_accuracy:
+                            type: number
+                            examples:
+                              - 82.14285714285714
+                      lulc_composition:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            class_id:
+                              type: integer
+                              examples:
+                                - 15
+                            class_name:
+                              type: string
+                              examples:
+                                - Settlement
+                            class_color:
+                              type: string
+                              description: "#FF0000"
+                              examples:
+                                - FF0000
+                            area_m2:
+                              type: number
+                              examples:
+                                - 91091325.30519158
+                            proportion:
+                              type: number
+                              examples:
+                                - 48.58938359575814
+                          required:
+                            - class_id
+                            - class_name
+                            - class_color
+                            - area_m2
+                            - proportion
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters:
+        - $ref: "#/components/parameters/session_id"
+      description: lulc map generate
+      operationId: lulcMapGenerate
   /api/v1/geos/aoi/upload:
     post:
       tags:
@@ -334,6 +461,7 @@ paths:
             application/json:
               schema:
                 type: object
+                title: LumaInputSummaryOk
                 required:
                   - message
                   - data
@@ -380,7 +508,6 @@ paths:
                     type: string
                     examples:
                       - success
-                title: LumaInputSummaryOk
           description: Success
         "400":
           $ref: "#/components/responses/Bad Request"
@@ -590,100 +717,6 @@ paths:
                   type: string
                   examples:
                     - b06e52c5-694d-4890-9a0e-ae9e4a581da5
-  /api/v1/luma/lulc-map:
-    get:
-      operationId: lulcMapGenerate
-      tags:
-        - Luma module
-      summary: lulc map generate
-      description: lulc map generate
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - message
-                  - results
-                properties:
-                  message:
-                    type: string
-                    examples:
-                      - success
-                  results:
-                    type: object
-                    properties:
-                      layers:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            url:
-                              type: string
-                              examples:
-                                - https://earthengine.googleapis.com/v1/projects/ee-epstm2024/maps/fdb1baf8b69e711636827dcee5a6a066-4793e995a6df89ee0be9e026e4ad767d/tiles/{z}/{x}/{y}
-                            name:
-                              type: string
-                              examples:
-                                - Land Cover Classification
-                          required:
-                            - url
-                            - name
-                      importance:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            Band:
-                              type: string
-                              examples:
-                                - SWIR1
-                            Importance:
-                              type: number
-                              examples:
-                                - 35.6997246784049
-                          required:
-                            - Band
-                            - Importance
-                      model_quality:
-                        type: object
-                        properties:
-                          average_f1_score:
-                            type: number
-                            examples:
-                              - 0.09431818181818181
-                          gmean_score:
-                            type: number
-                            examples:
-                              - 0.7476743906106103
-                          overall_accuracy:
-                            type: number
-                            examples:
-                              - 82.14285714285714
-                          kappa:
-                            type: number
-                            examples:
-                              - 0.49999999999999983
-                        required:
-                          - average_f1_score
-                          - gmean_score
-                          - overall_accuracy
-                          - kappa
-                    required:
-                      - layers
-                      - importance
-                      - model_quality
-                title: LumaInputSummaryOk
-          description: Success
-        "400":
-          $ref: "#/components/responses/Bad Request"
-        "401":
-          $ref: "#/components/responses/No Auth"
-        "500":
-          $ref: "#/components/responses/Internal Server Error"
-      parameters:
-        - $ref: "#/components/parameters/session_id"
 openapi: 3.1.0
 servers:
   - url: http://someserversurl.com
