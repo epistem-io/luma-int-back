@@ -9,6 +9,7 @@ from application.utils.common import AppMessageException
 
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
 from luma_ge.classification import FeatureExtraction, Generate_LULC
+from luma_ge.sample_data_quality import sample_quality, spectral_plotter
 
 def pack(data):
     return json.dumps(data) + "\n"
@@ -34,6 +35,7 @@ processes = [
     { 'name': 'model training & classification', 'w': 0.1 },
     { 'name': 'visualization', 'w': 3.0 },
     { 'name': 'calculate lulc composition', 'w': 1.0 },
+    { 'name': 'sample data quality', 'w': 2.0 },
     { 'name': 'feature importance', 'w': 2.0 },
     { 'name': 'evaluate model quality', 'w': 10.0 },
     { 'name': 'get download url', 'w': 2.5 },
@@ -151,6 +153,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     #region stratified split training data
     roi_ee = converter.convert_roi_gdf(train_gdf)
     class_property = 'class_id'
+    class_name_property = 'class_name'
     pixel_size = 30
     split_ratio = 0.7
 
@@ -171,6 +174,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     v_split = None
     min_leaf = 1
     use_auto_vsplit = True
+    scale = 30
 
     lulc = Generate_LULC()
     classification_result, trained_model = lulc.hard_classification(
@@ -214,7 +218,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
             groupName='class_id'
         ),
         geometry=aoi,
-        scale=30,
+        scale=scale,
         maxPixels=1e13
     )
     groups = areas.get('groups').getInfo()  # small grouped result only
@@ -236,6 +240,29 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     step = step + 1
     yield forge_process(step, { 'lulc_composition': lulc_composition })
     #endregion get lulc composition
+
+    #region sample data quality
+    max_pixels = 5000
+    method = 'TD'
+    analyzer = sample_quality(
+        training_data=roi_ee,
+        image=image,
+        class_property=class_property,
+        region=aoi,
+        class_name_property=class_name_property,           
+    )
+    sample_stats_df = analyzer.get_sample_stats_df()
+    pixel_extract = analyzer.extract_spectral_values(scale=scale, max_pixels_per_class=max_pixels)
+    pixel_stats_df = analyzer.get_sample_pixel_stats_df(pixel_extract)
+    separability_df = analyzer.get_separability_df(pixel_extract, method=method)
+    lowest_sep = analyzer.lowest_separability(pixel_extract, method=method)
+    min_td = lowest_sep['TD_Distance'].min()
+    lowest_sep_sorted = lowest_sep.sort_values(by="TD_Distance", ascending=False)
+    lowest_sep_filtered = lowest_sep_sorted[lowest_sep_sorted["TD_Distance"] < 1.8]
+    result_dict = lowest_sep_filtered.to_dict(orient="records")
+    step = step + 1
+    yield forge_process(step, { 'lowest_separability': { 'min_td': min_td, 'result_dict': result_dict } })
+    #endregion sample data quality
 
     #region feature importance
     importance_df = lulc.get_feature_importance(
@@ -264,16 +291,16 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     })
     #endregion model quality
 
-    print('classification result: {}'.format(classification_result))
-    print('importance df: {}'.format(importance_df))
-    print('model quality: {}'.format(model_quality))
-    print('layers: {}'.format(layers))
-    print(type(classification_result))
-    print(type(classification_result))
-    print(type(classification_result))
-    print(type(classification_result))
-    print(type(classification_result))
-    print('Band names:', classification_result.bandNames().getInfo())
+    # print('classification result: {}'.format(classification_result))
+    # print('importance df: {}'.format(importance_df))
+    # print('model quality: {}'.format(model_quality))
+    # print('layers: {}'.format(layers))
+    # print(type(classification_result))
+    # print(type(classification_result))
+    # print(type(classification_result))
+    # print(type(classification_result))
+    # print(type(classification_result))
+    # print('Band names:', classification_result.bandNames().getInfo())
 
     #region export image
     export_image = classification_result.toInt()
