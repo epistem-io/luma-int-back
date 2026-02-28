@@ -35,7 +35,7 @@ processes = [
     { 'name': 'model training & classification', 'w': 0.1 },
     { 'name': 'visualization', 'w': 3.0 },
     { 'name': 'calculate lulc composition', 'w': 1.0 },
-    { 'name': 'sample data quality', 'w': 2.0 },
+    { 'name': 'sample data quality', 'w': 5.0 },
     { 'name': 'feature importance', 'w': 2.0 },
     { 'name': 'evaluate model quality', 'w': 10.0 },
     { 'name': 'get download url', 'w': 2.5 },
