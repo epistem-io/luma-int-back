@@ -100,6 +100,7 @@ def define_lulc_classes():
     classes = data.get('classes', [])
     
     known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
 
     classes = lulc_classes.process(known_session, classes, None, None)
     
@@ -124,6 +125,7 @@ def lulc_classes_upload():
 
     extension = check_file(file, {'csv', 'xlsx', 'xls'})
     known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
 
     classes = lulc_classes.process(known_session, None, file, extension)
     
@@ -168,6 +170,7 @@ def training_data_post():
     input_data = data.get('training_data', [])
 
     known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
 
     dt = training_data.process(known_session, input_data)
     
@@ -192,6 +195,7 @@ def training_data_upload():
 
     check_file(file, {'zip'})
     known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
 
     filepath = save_uploaded_file(session_id, file, skip_gcs=True)
     filepath = process_zip(filepath, session_id, get_extension='shp', skip_gcs=True)
@@ -239,9 +243,7 @@ def get_luma_summary():
     known_session = session_logic.get_session(session_id, validate=True)
     known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
     
-    luma = luma_logic.get(known_session)
-    if not luma:
-        raise AppMessageException('luma params data (step-1) not found')
+    luma = luma_logic.get(known_session, validate=True)
 
     train_data = training_data.get(known_session)
     if not train_data:
@@ -274,9 +276,7 @@ def generate_lulc_map():
     known_session = session_logic.get_session(session_id, validate=True)
     known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
     
-    luma = luma_logic.get(known_session)
-    if not luma:
-        raise AppMessageException('luma params data (step-1) not found')
+    luma = luma_logic.get(known_session, validate=True)
 
     train_data = training_data.get(known_session)
     if not train_data:

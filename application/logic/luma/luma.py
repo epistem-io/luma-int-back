@@ -24,7 +24,12 @@ def save_param(
     return known_luma
 
 
-def get(known_session):
-    return Luma.query.filter_by(session_id=known_session.id).first()
+def get(known_session, validate=False):
+    known_luma = Luma.query.filter_by(session_id=known_session.id).first()
+    if not known_luma and validate:
+        raise AppMessageException('luma params data (step-1) not found')
+    return known_luma
+
+    
 
 
