@@ -1,6 +1,8 @@
 from application.models.luma import Luma
 from application import db
 
+from application.utils.common import AppMessageException
+
 def save_param(
     known_session,
     start_date:str,
