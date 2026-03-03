@@ -136,6 +136,17 @@ def generate(
             'mean': sum(cloud_covers)/len(cloud_covers) if cloud_covers else None
         }
     
-    print('band names: {}'.format(composite.bandNames().getInfo()))
+    # region export
+    band_names = composite.bandNames()
+    composite = composite.select(band_names)
+    results['download_url'] = composite.getDownloadURL({
+        "name": 'LULC_{sensor}_{start_date}_{end_date}'.format(sensor=optical_data, start_date=start_date, end_date=end_date),
+        "crs": 'EPSG:4326', # default
+        "scale": 30, # default
+        "region": aoi,
+        "filePerBand": False,
+        "fileFormat": "GEO_TIFF",
+        "formatOptions": {"cloudOptimized": True}
+    })
     
     return results
