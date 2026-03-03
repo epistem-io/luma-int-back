@@ -1,4 +1,3 @@
-from cac_be.application.utils.handler import AppMessageException
 import ee
 import geemap
 import pandas as pd
