@@ -257,7 +257,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     separability_df = analyzer.get_separability_df(pixel_extract, method=method)
     lowest_sep = analyzer.lowest_separability(pixel_extract, method=method)
     min_td = lowest_sep['TD_Distance'].min()
-    lowest_sep_sorted = lowest_sep.sort_values(by="TD_Distance", ascending=False)
+    lowest_sep_sorted = lowest_sep.sort_values(by="TD_Distance")
     lowest_sep_filtered = lowest_sep_sorted[lowest_sep_sorted["TD_Distance"] < 1.8]
     result_dict = lowest_sep_filtered.to_dict(orient="records")
     step = step + 1
