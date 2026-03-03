@@ -74,12 +74,12 @@ def generate_image_mosaic():
 
     # test.test_load_training_data(aoi)
 
-    layers = image_mosaic.generate(aoi, start_date, end_date, landsat_version, cloud_cover)
+    mosaic_results = image_mosaic.generate(aoi, start_date, end_date, landsat_version, cloud_cover)
     luma_logic.save_param(known_session, start_date, end_date, landsat_version, cloud_cover)
 
     results = {
         'message': 'success',
-        'layers': layers
+        'results': mosaic_results
     }
 
     return make_response(jsonify(success_handler(results)), 200)

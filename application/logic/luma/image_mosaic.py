@@ -1,5 +1,7 @@
+from cac_be.application.utils.handler import AppMessageException
 import ee
 import geemap
+import pandas as pd
 
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
 
@@ -109,4 +111,30 @@ def generate(
         d = Map.ee_layer_dict[m]
         layers.append({ 'name': m, 'url': d['ee_layer'].url })
     
-    return layers
+    results = {
+        'layers': layers,
+        'summary': [],
+        'statistics': {}
+    }
+
+    # bottom section
+    scene_ids = detailed_stats.get('Scene_ids', [])
+    acquisition_dates = detailed_stats.get('individual_dates', [])
+    cloud_covers = detailed_stats.get('cloud_cover', {}).get('values', [])
+
+    if not scene_ids or not acquisition_dates:
+    #Create a dataframe with all information
+        scene_df = pd.DataFrame({
+            'scene_id': scene_ids,
+            'tanggal_perekaman': acquisition_dates,
+            'tutupan_awan': [round(cc, 2) for cc in cloud_covers] if cloud_covers else ['N/A'] * len(scene_ids)
+        })
+        results['summary'] = scene_df.to_dict(orient="records")
+        
+        results['statistics'] = {
+            'min': min(cloud_covers) if cloud_covers else None,
+            'max': max(cloud_covers) if cloud_covers else None,
+            'mean': sum(cloud_covers)/len(cloud_covers) if cloud_covers else None
+        }
+    
+    return results
