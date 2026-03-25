@@ -362,15 +362,48 @@ paths:
                 required:
                   - message
                   - classes
+                  - training_data
+                  - training_data_summary
                 properties:
-                  classes:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/LulcClass"
                   message:
                     type: string
                     examples:
                       - success
+                  classes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LulcClass"
+                  training_data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TrainingData"
+                  training_data_summary:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - class_id
+                        - class_name
+                        - class_color
+                        - total_items
+                      properties:
+                        class_id:
+                          type: integer
+                          examples:
+                            - 1
+                        class_name:
+                          type: string
+                          examples:
+                            - Permukiman
+                        class_color:
+                          type: string
+                          examples:
+                            - "006400"
+                          description: "#006400"
+                        total_items:
+                          type: integer
+                          examples:
+                            - 1
           description: Success
         "400":
           $ref: "#/components/responses/Bad Request"

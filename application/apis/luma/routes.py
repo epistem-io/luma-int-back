@@ -103,10 +103,16 @@ def define_lulc_classes():
     luma = luma_logic.get(known_session, validate=True)
 
     classes = lulc_classes.process(known_session, classes, None, None)
-    
+
+    training_data.delete(known_session, commit=True)
+    training_data.set_default_training_points(known_session)
+    dt = training_data.get_with_geometry(known_session)
+
     results = {
         'message': 'success',
-        'classes': classes
+        'classes': classes,
+        'training_data': dt,
+        'training_data_summary': training_data.get_summary(known_session)
     }
 
     return make_response(jsonify(success_handler(results)), 200)

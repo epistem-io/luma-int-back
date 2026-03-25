@@ -12,6 +12,10 @@ def get(known_session):
     return TrainingData.query.filter_by(session_id=known_session.id).all()
 
 
+def get_with_geometry(known_session):
+    return TrainingData.get_by_session_id(known_session.id, to_json=True)
+
+
 def process(known_session, input_data):
     if type(input_data) != list:
         raise AppMessageException('invalid input: training data must be list', error=ErrorCodeEnum.ERR_VALIDATION)
