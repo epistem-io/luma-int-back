@@ -13,8 +13,16 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DB_SQLALCHEMY_URI')
     
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_size': 30, # custom pool size
-        'max_overflow': 0, # as recommended in https://docs.sqlalchemy.org/en/20/core/pooling.html
+        'pool_size': 30,
+        'max_overflow': 0,
+        'pool_pre_ping': True,       # test connection before use, discard if dead
+        'pool_recycle': 300,         # recycle connections after 5 min to avoid stale ones
+        'connect_args': {
+            'keepalives': 1,
+            'keepalives_idle': 30,
+            'keepalives_interval': 10,
+            'keepalives_count': 5,
+        }
     }
 
     GCS_BUCKET_NAME = os.environ.get('GCS_BUCKET_NAME')
