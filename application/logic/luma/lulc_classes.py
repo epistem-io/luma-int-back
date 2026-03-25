@@ -62,11 +62,12 @@ def iterate_classes(known_session, classes):
         except ValueError:
             raise AppMessageException('invalid input: lulc classes, id must be integer', error=ErrorCodeEnum.ERR_VALIDATION)
         
-        class_name = str(class_name)
         class_color = str(class_color)
 
         if not class_name:
             raise AppMessageException('invalid input: lulc classes, class name must not be empty', error=ErrorCodeEnum.ERR_VALIDATION)
+        
+        class_name = str(class_name)
         
         if not is_valid_hex_color(class_color):
             raise AppMessageException('invalid input: lulc classes, color must be valid hex color', error=ErrorCodeEnum.ERR_VALIDATION)
