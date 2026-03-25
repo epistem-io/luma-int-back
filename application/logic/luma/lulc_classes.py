@@ -20,7 +20,7 @@ def process(known_session, classes, file, extension):
                 df = pd.read_excel(file, usecols=range(3))
         except Exception as e:
             current_app.logger.error('failed to read lulc classes file: {}'.format(str(e)))
-            raise AppMessageException('failed to read file', error=ErrorCodeEnum.ERR_VALIDATION)
+            raise AppMessageException('Failed to read the file. Please ensure the file format is valid, all required columns are present, and the file contains data', error=ErrorCodeEnum.ERR_VALIDATION)
 
         df.columns = ['id', 'class', 'color']
         classes = df.to_dict('records')

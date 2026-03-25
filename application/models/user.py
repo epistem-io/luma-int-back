@@ -5,6 +5,7 @@ from flask import current_app
 from flask_login import UserMixin
 from passlib.hash import sha256_crypt
 from datetime import datetime, timedelta
+from sqlalchemy.dialects.postgresql import JSONB
 
 import uuid
 import os
@@ -94,3 +95,17 @@ class GeeAsset(db.Model):
             'created_date': self.created_date.isoformat() if self.created_date else None,
             'modified_date': self.modified_date.isoformat() if self.modified_date else None,
         }
+
+
+class ErrorLog(db.Model):
+    __tablename__ = 'system_error_log'
+    id = db.Column(db.String(36), primary_key=True, default=get_uuid)
+
+    api_name = db.Column(db.String(256), nullable=True)
+    session_id = db.Column(db.String(36), nullable=True)
+    request_url = db.Column(db.Text, nullable=True)
+    request_method = db.Column(db.String(16), nullable=True)
+    request_data = db.Column(JSONB, nullable=True)
+    trace = db.Column(db.Text, nullable=True)
+
+    created_date = db.Column(db.DateTime, default=get_date)

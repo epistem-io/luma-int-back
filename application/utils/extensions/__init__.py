@@ -1,4 +1,4 @@
-from flask import Flask, g as g_var
+from flask import Flask, g as g_var, request
 from flask import make_response, jsonify
 from flask.wrappers import Response
 from application.utils.logger import logging
@@ -7,6 +7,7 @@ from application.utils.common import ErrorCodeEnum
 from werkzeug.exceptions import NotFound
 
 import gc
+import traceback
 
 class AppExtensions(object):
 
@@ -52,4 +53,36 @@ class AppExtensions(object):
         def exception_handler(e):
             if type(e) == NotFound:
                 return make_response(jsonify(app_exception_handler(AppMessageException('Resource not found', error=ErrorCodeEnum.ERR_NOT_FOUND), services=g_var.__api_name__)), 404)
+
+            try:
+                from application import db
+                from application.models.user import ErrorLog
+
+                request_data = {}
+                if request.args:
+                    request_data['params'] = request.args.to_dict()
+                if request.is_json and request.get_json(silent=True):
+                    request_data['body'] = request.get_json(silent=True)
+                elif request.form:
+                    request_data['body'] = request.form.to_dict()
+
+                session_id = (
+                    request.args.get('session_id')
+                    or (request.get_json(silent=True) or {}).get('session_id')
+                    or request.form.get('session_id')
+                )
+
+                db.session.rollback()
+                error_log = ErrorLog()
+                error_log.api_name = g_var.__api_name__
+                error_log.session_id = session_id
+                error_log.request_url = request.url
+                error_log.request_method = request.method
+                error_log.request_data = request_data if request_data else None
+                error_log.trace = traceback.format_exc()
+                db.session.add(error_log)
+                db.session.commit()
+            except Exception as log_err:
+                app.logger.warning('failed to save error log: {}'.format(str(log_err)))
+
             return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 500) # send internal error
