@@ -584,7 +584,7 @@ paths:
         "500":
           $ref: "#/components/responses/Internal Server Error"
       parameters: []
-      description: append training data, supposedly step-3
+      description: replace all training data with submitted data, supposedly step-3
       operationId: trainingDataUpdate
       requestBody:
         content:
@@ -731,7 +731,7 @@ paths:
         "500":
           $ref: "#/components/responses/Internal Server Error"
       parameters: []
-      description: upload training data, supposedly step-3
+      description: parse and preview training data from uploaded file without saving to database, supposedly step-3
       operationId: trainingDataUpload
       requestBody:
         content:

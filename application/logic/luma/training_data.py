@@ -24,7 +24,7 @@ def process(known_session, input_data):
         raise AppMessageException('invalid input: training data must not be empty', error=ErrorCodeEnum.ERR_VALIDATION)
 
     reference_set, reference_dict_id, reference_dict_name = get_current_class_scheme(known_session)
-    
+
     records = []
     for d in input_data:
         class_id = d.get('class_id')
@@ -32,12 +32,12 @@ def process(known_session, input_data):
 
         if class_id is None or not geom:
             raise AppMessageException('invalid input: training data must contain class_id and geom', error=ErrorCodeEnum.ERR_VALIDATION)
-        
+
         if class_id not in reference_dict_id:
             raise AppMessageException('invalid input: class_id not found in reference class', error=ErrorCodeEnum.ERR_VALIDATION)
-        
+
         geom = shape(geom)
-        
+
         records.append({
             'session_id': known_session.id,
             'class_id': class_id,
@@ -46,6 +46,7 @@ def process(known_session, input_data):
             'geom': from_shape(geom, srid=4326)
         })
 
+    delete(known_session)
     db.session.bulk_insert_mappings(TrainingData, records)
     db.session.commit()
 
@@ -90,10 +91,6 @@ def process_file(known_session, aoi, filepath):
         for row in gdf.itertuples()
     ]
 
-    db.session.bulk_insert_mappings(TrainingData, records)
-    db.session.commit()
-    
-    # return TrainingData.get_by_session_id(known_session.id, to_json=True)
     return [{
         'class_id': n['class_id'],
         'class_name': n['class_name'],
