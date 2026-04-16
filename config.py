@@ -13,10 +13,11 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DB_SQLALCHEMY_URI')
     
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_size': 30,
-        'max_overflow': 0,
+        'pool_size': 10,
+        'max_overflow': 5,
         'pool_pre_ping': True,       # test connection before use, discard if dead
-        'pool_recycle': 300,         # recycle connections after 5 min to avoid stale ones
+        'pool_recycle': 120,
+        'pool_timeout': 30,
         'connect_args': {
             'keepalives': 1,
             'keepalives_idle': 30,
