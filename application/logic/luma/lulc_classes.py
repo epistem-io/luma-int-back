@@ -11,23 +11,30 @@ from luma_ge.classification_scheme import LULC_Scheme_Manager
 def get(known_session):
     return LulcClass.query.filter_by(session_id=known_session.id).all()
 
+DEFAULT_CLASS_COLORS = [
+    '#EFC6D5', '#CC4778', '#99355A', '#F0F921', '#C0C71A',
+    '#909514', '#54570C', '#D7B1E4', '#650386', '#39024C'
+]
+
 def process(known_session, classes, file, extension):
     if file:
         try:
             if extension == 'csv':
-                df = pd.read_csv(file, usecols=range(3))
+                df = pd.read_csv(file, usecols=range(2))
             elif extension == 'xlsx' or extension == 'xls':
-                df = pd.read_excel(file, usecols=range(3))
+                df = pd.read_excel(file, usecols=range(2))
         except Exception as e:
             current_app.logger.error('failed to read lulc classes file: {}'.format(str(e)))
             raise AppMessageException('Failed to read the file. Please ensure the file format is valid, all required columns are present, and the file contains data', error=ErrorCodeEnum.ERR_VALIDATION)
 
-        df.columns = ['id', 'class', 'color']
+        df.columns = ['id', 'class']
         classes = df.to_dict('records')
-    
+        for i, cls in enumerate(classes):
+            cls['color'] = DEFAULT_CLASS_COLORS[i % len(DEFAULT_CLASS_COLORS)]
+
     validate_classes(classes)
     delete(known_session)
-    
+
     return iterate_classes(known_session, classes)
     
 
