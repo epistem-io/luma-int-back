@@ -9,7 +9,10 @@ from application.utils.common import AppMessageException
 
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
 from luma_ge.classification import FeatureExtraction, Generate_LULC
+from luma_ge.classification_scheme import LULC_Scheme_Manager
 from luma_ge.sample_data_quality import sample_quality, spectral_plotter
+
+PREBUILT_SCHEME = 'RESTORE+ Project'
 
 def pack(data):
     return json.dumps(data) + "\n"
@@ -155,7 +158,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     class_property = 'class_id'
     class_name_property = 'class_name'
     pixel_size = 30
-    split_ratio = 0.7
+    split_ratio = 0.5
 
     fe = FeatureExtraction()
     train_data_split, testing_data_split = fe.stratified_split(
@@ -170,9 +173,9 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     #endregion stratified split training data
 
     #region classification
-    ntrees = 150
+    ntrees = 300
     v_split = None
-    min_leaf = 1
+    min_leaf = 2
     use_auto_vsplit = True
     scale = 30
 
@@ -200,6 +203,16 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     Map = geemap.Map()
     Map.centerObject(aoi, 8)
     Map.addLayer(classification_result, vis_params, 'Land Cover Classification')
+
+    scheme_classes = LULC_Scheme_Manager.get_default_schemes()[PREBUILT_SCHEME]
+    prebuilt = lulc.classify_from_prebuilt(
+        scheme_name=PREBUILT_SCHEME,
+        aoi=aoi,
+        year=luma.start_date.year,
+        scheme_classes=scheme_classes,
+    )
+    Map.addLayer(prebuilt['final_map'], prebuilt['vis_params'], 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
+
     layers = []
     for m in Map.ee_layer_dict.keys():
         d = Map.ee_layer_dict[m]
@@ -209,20 +222,14 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     #endregion visualization
 
     #region calculate lulc composition
-    area_image = ee.Image.pixelArea().addBands(
-        classification_result.select('classification')
-    )
-    areas = area_image.reduceRegion(
-        reducer=ee.Reducer.sum().group(
-            groupField=1,
-            groupName='class_id'
-        ),
+    hist = classification_result.select('classification').reduceRegion(
+        reducer=ee.Reducer.frequencyHistogram(),
         geometry=aoi,
         scale=scale,
         maxPixels=1e13
-    )
-    groups = areas.get('groups').getInfo()  # small grouped result only
-    area_dict = {g['class_id']: g['sum'] for g in groups}
+    ).get('classification').getInfo()
+    pixel_area = scale * scale
+    area_dict = {int(k): v * pixel_area for k, v in (hist or {}).items()}
     total_area = sum(area_dict.values())
     lulc_composition = []
     for c in classes:
