@@ -3,6 +3,8 @@ import geopandas as gpd
 import geemap
 import json
 
+from flask import current_app
+
 from application import db
 from application.logic.geos.aoi import converter
 from application.utils.common import AppMessageException
@@ -46,292 +48,322 @@ processes = [
 ]
 total_w = sum([p['w'] for p in processes])
 
+def _log_step_failure(stage, e):
+    current_app.logger.error('luma generate: {} failed: {}'.format(stage, e))
+
 def generate(known_session, known_aoi, aoi, luma, classes):
     step = 0
 
     optical_data = luma.landsat_version
-    thermal_data = optical_data.replace('_SR', '_TOA')  # match Landsat pair automatically
+    thermal_data = optical_data.replace('_SR', '_TOA')
     start_date = luma.start_date.strftime('%Y-%m-%d')
     end_date = luma.end_date.strftime('%Y-%m-%d')
     yield forge_process(step, { 'processes': processes })
-    
-    #region get optical data
-    reflectance = Reflectance_Data()
-    collection, meta = reflectance.get_optical_data(
-        aoi=aoi,
-        start_date=start_date,
-        end_date=end_date,
-        optical_data=optical_data,
-        cloud_cover=luma.cloud_cover,
-        verbose=False,
-        compute_detailed_stats=False
-    )
-    step = step + 1
-    yield forge_process(step, {})
-    #endregion get optical data
-    
-    #region get thermal data
-    #Second, use the same parameter as multispectral data and use it to search collection 2 TOA data. Retrive thermal band only
-    #Skip thermal bands for Landsat 1-3 MSS (no thermal capability)
-    thermal_collection = None
-    if optical_data not in ['L1_RAW', 'L2_RAW', 'L3_RAW']:
-        thermal_collection, meta = reflectance.get_thermal_bands(
-            aoi=aoi,
-            start_date=start_date,
-            end_date=end_date,
-            thermal_data=thermal_data,
-            cloud_cover=luma.cloud_cover,
-            verbose=False,
-            compute_detailed_stats=False
-        )
-    else:
-        print("ℹ️ Catatan: Sensor MSS pada Landsat 1–3 tidak memiliki kanal termal. Hanya kanal multispektral yang akan diproses.")
-    step = step + 1
-    yield forge_process(step, {})
-    #endregion get thermal data
-    
-    #region check image count
-    stats = Reflectance_Stats()
-    detailed_stats = stats.get_collection_statistics(collection, compute_stats=True, print_report=True)
-    # Safely get total images count with fallback
-    total_images = detailed_stats.get('total_images', 0)
-    if total_images == 0:
-        # Try alternative keys that might contain the count
-        total_images = detailed_stats.get('num_images', 0)
-        if total_images == 0:
-            # Fallback to collection size
-            try:
-                total_images = int(collection.size().getInfo())
-            except:
-                total_images = 0
-    
-    if total_images <= 0:
-        raise AppMessageException('image composite/mosaic for thermal bands not available')
-    
-    step = step + 1
-    yield forge_process(step, {})
-    #endregion check image count
-    
-    #region create image composite
-    #Create and image composite/mosaic for thermal bands (if available).
-    #Replace the streamlit based composite creation, with backend based process
-    image_processor = final_Image()
-    if thermal_collection is not None:
-        thermal_median = thermal_collection.median().clip(aoi)
-        #Create multispectral composite using median via final_Image
-        composite = image_processor.get_temporal_composite(collection, aoi, reducer='median', verbose=False)
-        #Stack thermal band and ensure float type
-        composite = composite.addBands(thermal_median).toFloat()
-    else:
-        #For Landsat 1-3 MSS: no thermal bands available — use temporal composite
-        composite = image_processor.get_temporal_composite(collection, aoi, reducer='median', verbose=False).toFloat()
-    
-    image = composite
-    step = step + 1
-    yield forge_process(step, {})
-    #endregion create image composite
 
-    #region get training data
-    train_gdf = gpd.read_postgis(
-        db.text(
-        '''
-        select
-            class_id,
-            class_name,
-            class_color,
-            geom geometry
-        from luma_training_data
-        where session_id = :session_id
-        order by class_id
-        '''
-        ), 
-        db.engine, 
-        geom_col='geometry', 
-        params={'session_id': known_session.id}
-    )
-    step = step + 1
-    yield forge_process(step, {})
-    #endregion get training data
-    
-    #region stratified split training data
-    roi_ee = converter.convert_roi_gdf(train_gdf)
+    collection = None
+    thermal_collection = None
+    image = None
+    train_gdf = None
+    roi_ee = None
+    train_data_split = None
+    testing_data_split = None
+    classification_result = None
+    trained_model = None
+    layers = []
+    lulc_composition = []
     class_property = 'class_id'
     class_name_property = 'class_name'
     pixel_size = 30
     split_ratio = 0.5
+    scale = 30
+    reflectance = Reflectance_Data()
+    lulc = Generate_LULC()
 
-    fe = FeatureExtraction()
-    train_data_split, testing_data_split = fe.stratified_split(
-        roi=roi_ee,
-        image=image,
-        class_prop=class_property,
-        pixel_size=pixel_size,
-        train_ratio=split_ratio,
-    )
+    #region get optical data
+    try:
+        collection, _meta = reflectance.get_optical_data(
+            aoi=aoi,
+            start_date=start_date,
+            end_date=end_date,
+            optical_data=optical_data,
+            cloud_cover=luma.cloud_cover,
+            verbose=False,
+            compute_detailed_stats=False
+        )
+    except Exception as e:
+        _log_step_failure('get optical data', e)
     step = step + 1
     yield forge_process(step, {})
-    #endregion stratified split training data
+    #endregion
+
+    #region get thermal data
+    try:
+        if optical_data not in ['L1_RAW', 'L2_RAW', 'L3_RAW']:
+            thermal_collection, _meta = reflectance.get_thermal_bands(
+                aoi=aoi,
+                start_date=start_date,
+                end_date=end_date,
+                thermal_data=thermal_data,
+                cloud_cover=luma.cloud_cover,
+                verbose=False,
+                compute_detailed_stats=False
+            )
+    except Exception as e:
+        _log_step_failure('get thermal bands', e)
+    step = step + 1
+    yield forge_process(step, {})
+    #endregion
+
+    #region check image count
+    try:
+        if collection is not None:
+            stats = Reflectance_Stats()
+            detailed_stats = stats.get_collection_statistics(collection, compute_stats=True, print_report=True)
+            total_images = detailed_stats.get('total_images', 0) or detailed_stats.get('num_images', 0)
+            if not total_images:
+                try:
+                    total_images = int(collection.size().getInfo())
+                except:
+                    total_images = 0
+            if total_images <= 0:
+                collection = None
+    except Exception as e:
+        _log_step_failure('check image count', e)
+        collection = None
+    step = step + 1
+    yield forge_process(step, {})
+    #endregion
+
+    #region create image composite
+    try:
+        if collection is not None:
+            image_processor = final_Image()
+            if thermal_collection is not None:
+                thermal_median = thermal_collection.median().clip(aoi)
+                composite = image_processor.get_temporal_composite(collection, aoi, reducer='median', verbose=False)
+                composite = composite.addBands(thermal_median).toFloat()
+            else:
+                composite = image_processor.get_temporal_composite(collection, aoi, reducer='median', verbose=False).toFloat()
+            image = composite
+    except Exception as e:
+        _log_step_failure('create image composite', e)
+    step = step + 1
+    yield forge_process(step, {})
+    #endregion
+
+    #region get training data
+    try:
+        train_gdf = gpd.read_postgis(
+            db.text(
+            '''
+            select
+                class_id,
+                class_name,
+                class_color,
+                geom geometry
+            from luma_training_data
+            where session_id = :session_id
+            order by class_id
+            '''
+            ),
+            db.engine,
+            geom_col='geometry',
+            params={'session_id': known_session.id}
+        )
+    except Exception as e:
+        _log_step_failure('get training data', e)
+    step = step + 1
+    yield forge_process(step, {})
+    #endregion
+
+    #region stratified split training data
+    try:
+        if train_gdf is not None and image is not None:
+            roi_ee = converter.convert_roi_gdf(train_gdf)
+            fe = FeatureExtraction()
+            train_data_split, testing_data_split = fe.stratified_split(
+                roi=roi_ee,
+                image=image,
+                class_prop=class_property,
+                pixel_size=pixel_size,
+                train_ratio=split_ratio,
+            )
+    except Exception as e:
+        _log_step_failure('split training data', e)
+    step = step + 1
+    yield forge_process(step, {})
+    #endregion
 
     #region classification
-    ntrees = 300
-    v_split = None
-    min_leaf = 2
-    use_auto_vsplit = True
-    scale = 30
-
-    lulc = Generate_LULC()
-    classification_result, trained_model = lulc.hard_classification(
-        training_data=train_data_split,
-        class_property=class_property,
-        image=image,
-        ntrees=ntrees,
-        v_split=v_split,
-        min_leaf=min_leaf,
-        return_model=True
-    )
+    try:
+        if train_data_split is not None and image is not None:
+            classification_result, trained_model = lulc.hard_classification(
+                training_data=train_data_split,
+                class_property=class_property,
+                image=image,
+                ntrees=300,
+                v_split=None,
+                min_leaf=2,
+                return_model=True
+            )
+    except Exception as e:
+        _log_step_failure('classification', e)
     step = step + 1
     yield forge_process(step, {})
-    #endregion classification
-    
+    #endregion
+
     #region visualization
-    unique_df = train_gdf[['class_id', 'class_color']].drop_duplicates('class_id').sort_values('class_id')
-    vis_params = {
-        'min': int(unique_df['class_id'].min()),
-        'max': int(unique_df['class_id'].max()),
-        'palette': unique_df['class_color'].tolist()
-    }
-    Map = geemap.Map()
-    Map.centerObject(aoi, 8)
-    Map.addLayer(classification_result, vis_params, 'Land Cover Classification')
+    try:
+        Map = geemap.Map()
+        Map.centerObject(aoi, 8)
+        if classification_result is not None and train_gdf is not None:
+            unique_df = train_gdf[['class_id', 'class_color']].drop_duplicates('class_id').sort_values('class_id')
+            vis_params = {
+                'min': int(unique_df['class_id'].min()),
+                'max': int(unique_df['class_id'].max()),
+                'palette': unique_df['class_color'].tolist()
+            }
+            Map.addLayer(classification_result, vis_params, 'Land Cover Classification')
 
-    scheme_classes = LULC_Scheme_Manager.get_default_schemes()[PREBUILT_SCHEME]
-    prebuilt = lulc.classify_from_prebuilt(
-        scheme_name=PREBUILT_SCHEME,
-        aoi=aoi,
-        year=luma.start_date.year,
-        scheme_classes=scheme_classes,
-    )
-    Map.addLayer(prebuilt['final_map'], prebuilt['vis_params'], 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
+        try:
+            scheme_classes = LULC_Scheme_Manager.get_default_schemes()[PREBUILT_SCHEME]
+            prebuilt = lulc.classify_from_prebuilt(
+                scheme_name=PREBUILT_SCHEME,
+                aoi=aoi,
+                year=luma.start_date.year,
+                scheme_classes=scheme_classes,
+            )
+            Map.addLayer(prebuilt['final_map'], prebuilt['vis_params'], 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
+        except Exception as e:
+            _log_step_failure('prebuilt clip layer', e)
 
-    layers = []
-    for m in Map.ee_layer_dict.keys():
-        d = Map.ee_layer_dict[m]
-        layers.append({ 'name': m, 'url': d['ee_layer'].url })
+        for m in Map.ee_layer_dict.keys():
+            d = Map.ee_layer_dict[m]
+            layers.append({ 'name': m, 'url': d['ee_layer'].url })
+    except Exception as e:
+        _log_step_failure('visualization', e)
     step = step + 1
     yield forge_process(step, { 'layers': layers })
-    #endregion visualization
+    #endregion
 
     #region calculate lulc composition
-    hist = classification_result.select('classification').reduceRegion(
-        reducer=ee.Reducer.frequencyHistogram(),
-        geometry=aoi,
-        scale=scale,
-        maxPixels=1e13
-    ).get('classification').getInfo()
-    pixel_area = scale * scale
-    area_dict = {int(k): v * pixel_area for k, v in (hist or {}).items()}
-    total_area = sum(area_dict.values())
-    lulc_composition = []
-    for c in classes:
-        area = area_dict.get(c.class_id, 0)
-
-        if area > 0:
-            lulc_composition.append({
-                'class_id': c.class_id,
-                'class_name': c.class_name,
-                'class_color': c.class_color,
-                'area_m2': area,
-                'proportion': area / total_area * 100
-            })
-    lulc_composition.sort(key=lambda x: x['proportion'], reverse=True)
+    try:
+        if classification_result is not None:
+            hist = classification_result.select('classification').reduceRegion(
+                reducer=ee.Reducer.frequencyHistogram(),
+                geometry=aoi,
+                scale=scale,
+                maxPixels=1e13
+            ).get('classification').getInfo()
+            pixel_area = scale * scale
+            area_dict = {int(k): v * pixel_area for k, v in (hist or {}).items()}
+            total_area = sum(area_dict.values())
+            if total_area > 0:
+                for c in classes:
+                    area = area_dict.get(c.class_id, 0)
+                    if area > 0:
+                        lulc_composition.append({
+                            'class_id': c.class_id,
+                            'class_name': c.class_name,
+                            'class_color': c.class_color,
+                            'area_m2': area,
+                            'proportion': area / total_area * 100
+                        })
+                lulc_composition.sort(key=lambda x: x['proportion'], reverse=True)
+    except Exception as e:
+        _log_step_failure('lulc composition', e)
     step = step + 1
     yield forge_process(step, { 'lulc_composition': lulc_composition })
-    #endregion get lulc composition
+    #endregion
 
     #region sample data quality
-    max_pixels = 5000
-    method = 'TD'
-    analyzer = sample_quality(
-        training_data=roi_ee,
-        image=image,
-        class_property=class_property,
-        region=aoi,
-        class_name_property=class_name_property,           
-    )
-    sample_stats_df = analyzer.get_sample_stats_df()
-    pixel_extract = analyzer.extract_spectral_values(scale=scale, max_pixels_per_class=max_pixels)
-    pixel_stats_df = analyzer.get_sample_pixel_stats_df(pixel_extract)
-    separability_df = analyzer.get_separability_df(pixel_extract, method=method)
-    lowest_sep = analyzer.lowest_separability(pixel_extract, method=method)
-    min_td = lowest_sep['TD_Distance'].min()
-    lowest_sep_sorted = lowest_sep.sort_values(by="TD_Distance")
-    lowest_sep_filtered = lowest_sep_sorted[lowest_sep_sorted["TD_Distance"] < 1.8]
-    result_dict = lowest_sep_filtered.to_dict(orient="records")
+    lowest_separability = { 'min_td': 0, 'result_dict': [] }
+    try:
+        if roi_ee is not None and image is not None:
+            analyzer = sample_quality(
+                training_data=roi_ee,
+                image=image,
+                class_property=class_property,
+                region=aoi,
+                class_name_property=class_name_property,
+            )
+            analyzer.get_sample_stats_df()
+            pixel_extract = analyzer.extract_spectral_values(scale=scale, max_pixels_per_class=5000)
+            analyzer.get_sample_pixel_stats_df(pixel_extract)
+            analyzer.get_separability_df(pixel_extract, method='TD')
+            lowest_sep = analyzer.lowest_separability(pixel_extract, method='TD')
+            min_td = lowest_sep['TD_Distance'].min()
+            lowest_sep_sorted = lowest_sep.sort_values(by='TD_Distance')
+            lowest_sep_filtered = lowest_sep_sorted[lowest_sep_sorted['TD_Distance'] < 1.8]
+            lowest_separability = {
+                'min_td': min_td,
+                'result_dict': lowest_sep_filtered.to_dict(orient='records')
+            }
+    except Exception as e:
+        _log_step_failure('sample data quality', e)
     step = step + 1
-    yield forge_process(step, { 'lowest_separability': { 'min_td': min_td, 'result_dict': result_dict } })
-    #endregion sample data quality
+    yield forge_process(step, { 'lowest_separability': lowest_separability })
+    #endregion
 
     #region feature importance
-    importance_df = lulc.get_feature_importance(
-        trained_model,
-        training_data=train_data_split,
-        class_property=class_property
-    )
+    feature_importance = []
+    try:
+        if trained_model is not None and train_data_split is not None:
+            importance_df = lulc.get_feature_importance(
+                trained_model,
+                training_data=train_data_split,
+                class_property=class_property
+            )
+            feature_importance = importance_df.to_dict('records')
+    except Exception as e:
+        _log_step_failure('feature importance', e)
     step = step + 1
-    yield forge_process(step, { 'feature_importance': importance_df.to_dict('records') })
-    #endregion feature importance
+    yield forge_process(step, { 'feature_importance': feature_importance })
+    #endregion
 
     #region model quality
-    model_quality = lulc.evaluate_model(
-        trained_model=trained_model,
-        test_data=testing_data_split,
-        class_property=class_property
-    )
+    model_quality_payload = {
+        'overall_accuracy': 0,
+        'kappa': 0,
+        'average_f1_score': 0,
+        'gmean_score': 0
+    }
+    try:
+        if trained_model is not None and testing_data_split is not None:
+            model_quality = lulc.evaluate_model(
+                trained_model=trained_model,
+                test_data=testing_data_split,
+                class_property=class_property
+            )
+            f1s = model_quality.get('f1_scores', []) or []
+            avg_f1 = sum(f1s) / len(f1s) if f1s else 0
+            model_quality_payload = {
+                'overall_accuracy': model_quality.get('overall_accuracy', 0) * 100,
+                'kappa': model_quality.get('kappa', 0),
+                'average_f1_score': avg_f1,
+                'gmean_score': model_quality.get('overall_gmean', 0)
+            }
+    except Exception as e:
+        _log_step_failure('evaluate model quality', e)
     step = step + 1
-    yield forge_process(step, {
-        'model_quality': {
-            'overall_accuracy': model_quality.get('overall_accuracy', 0) * 100,
-            'kappa': model_quality.get('kappa', 0),
-            'average_f1_score': sum(model_quality.get('f1_scores', [])) / len(model_quality.get('f1_scores', [])),
-            'gmean_score': model_quality.get('overall_gmean', 0)
-        }
-    })
-    #endregion model quality
-
-    # print('classification result: {}'.format(classification_result))
-    # print('importance df: {}'.format(importance_df))
-    # print('model quality: {}'.format(model_quality))
-    # print('layers: {}'.format(layers))
-    # print(type(classification_result))
-    # print(type(classification_result))
-    # print(type(classification_result))
-    # print(type(classification_result))
-    # print(type(classification_result))
-    # print('Band names:', classification_result.bandNames().getInfo())
+    yield forge_process(step, { 'model_quality': model_quality_payload })
+    #endregion
 
     #region export image
-    export_image = classification_result.toInt()
-    download_url = export_image.getDownloadURL({
-        "name": 'LULC_{sensor}_{start_date}_{end_date}'.format(sensor=optical_data, start_date=start_date, end_date=end_date),
-        "crs": 'EPSG:4326', # default
-        "scale": 30, # default
-        "region": aoi,
-        "fileFormat": "GEO_TIFF",
-        "formatOptions": {"cloudOptimized": True, "noData": 0}
-    })
+    download_url = ''
+    try:
+        if classification_result is not None:
+            export_image = classification_result.toInt()
+            download_url = export_image.getDownloadURL({
+                'name': 'LULC_{sensor}_{start_date}_{end_date}'.format(sensor=optical_data, start_date=start_date, end_date=end_date),
+                'crs': 'EPSG:4326',
+                'scale': 30,
+                'region': aoi,
+                'fileFormat': 'GEO_TIFF',
+                'formatOptions': {'cloudOptimized': True, 'noData': 0}
+            })
+    except Exception as e:
+        _log_step_failure('get download url', e)
     step = step + 1
     yield forge_process(step, { 'download_url': download_url })
-    #endregion export image
-
-    # yield pack({
-    #     'layers': layers,
-    #     'importance': importance_df.to_dict('records'),
-    #     'lulc_composition': lulc_composition,
-    #     'download_url': download_url,
-    #     'model_quality': {
-    #         'overall_accuracy': model_quality.get('overall_accuracy', 0) * 100,
-    #         'kappa': model_quality.get('kappa', 0),
-    #         'average_f1_score': sum(model_quality.get('f1_scores', [])) / len(model_quality.get('f1_scores', [])),
-    #         'gmean_score': model_quality.get('overall_gmean', 0)
-    #     }
-    # })
+    #endregion
