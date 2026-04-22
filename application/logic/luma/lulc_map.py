@@ -228,24 +228,31 @@ def generate(known_session, known_aoi, aoi, luma, classes):
         try:
             manager = LULC_Scheme_Manager()
             manager.load_default_scheme(PREBUILT_SCHEME)
+            scheme_df = manager.get_dataframe()
+            selection = manager.store_classes_of_interest(
+                scheme_name=PREBUILT_SCHEME,
+                classes_of_interest=[int(c.class_id) for c in classes],
+            )
             prebuilt = lulc.classify_from_prebuilt(
                 scheme_name=PREBUILT_SCHEME,
                 aoi=aoi,
                 year=luma.start_date.year,
                 scheme_classes=manager.classes,
             )
-            selected_ids = {int(c.class_id) for c in classes}
-            selected_entries = [sc for sc in manager.classes if int(sc['ID']) in selected_ids]
+            reclassified_map, _info = lulc.reclassify_map_by_classes(
+                classification_map=prebuilt['final_map'],
+                classification_df=scheme_df,
+                selected_classes=selection,
+            )
+            selected_id_set = {int(i) for i in selection['classes_of_interest']}
+            selected_entries = [sc for sc in manager.classes if int(sc['ID']) in selected_id_set]
             if selected_entries:
-                from_ids = [int(sc['ID']) for sc in selected_entries]
-                vis_ids = list(range(1, len(from_ids) + 1))
-                other_id = len(vis_ids) + 1
-                palette = [sc['Color Code'] for sc in selected_entries] + ['#BDBDBD']
-                prebuilt_img = prebuilt['final_map']
-                band_name = prebuilt_img.bandNames().get(0).getInfo()
-                vis_map = prebuilt_img.remap(from_ids, vis_ids, other_id, band_name)
-                vis_params = { 'min': 1, 'max': other_id, 'palette': palette }
-                Map.addLayer(vis_map, vis_params, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
+                reclass_ids = [int(sc['ID']) for sc in selected_entries] + [999]
+                reclass_colors = [sc['Color Code'] for sc in selected_entries] + ['#BDBDBD']
+                vis_ids = list(range(1, len(reclass_ids) + 1))
+                vis_map = reclassified_map.remap(reclass_ids, vis_ids)
+                reclass_vis = { 'min': 1, 'max': len(vis_ids), 'palette': reclass_colors }
+                Map.addLayer(vis_map, reclass_vis, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
         except Exception as e:
             _log_step_failure('prebuilt clip layer', e)
 
