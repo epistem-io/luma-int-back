@@ -228,30 +228,23 @@ def generate(known_session, known_aoi, aoi, luma, classes):
         try:
             manager = LULC_Scheme_Manager()
             manager.load_default_scheme(PREBUILT_SCHEME)
-            scheme_df = manager.get_dataframe()
-            selection = manager.store_classes_of_interest(
-                scheme_name=PREBUILT_SCHEME,
-                classes_of_interest=[int(c.class_id) for c in classes],
-            )
+            selected_ids = sorted({int(c.class_id) for c in classes})
+            id_to_color = {c['ID']: c['Color Code'] for c in manager.classes}
+            selected_scheme_classes = [c for c in manager.classes if c['ID'] in selected_ids]
             prebuilt = lulc.classify_from_prebuilt(
                 scheme_name=PREBUILT_SCHEME,
                 aoi=aoi,
                 year=luma.start_date.year,
-                scheme_classes=manager.classes,
+                scheme_classes=selected_scheme_classes,
             )
-            reclassified_map, _info = lulc.reclassify_map_by_classes(
-                classification_map=prebuilt['final_map'],
-                classification_df=scheme_df,
-                selected_classes=selection,
+            vis_ids = list(range(1, len(selected_ids) + 1))
+            palette = [id_to_color[i] for i in selected_ids]
+            display_map = prebuilt['final_map'].select(0).remap(selected_ids, vis_ids, 0).selfMask()
+            Map.addLayer(
+                display_map,
+                {'min': 1, 'max': len(selected_ids), 'palette': palette},
+                'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used'])
             )
-            selection_df = scheme_df[scheme_df['ID'].isin([int(c.class_id) for c in classes])].sort_values('ID')
-            prebuilt_vis = {
-                'min': int(selection_df['ID'].min()),
-                'max': int(selection_df['ID'].max()),
-                'palette': selection_df['Color Palette'].tolist()
-            }
-            Map.addLayer(reclassified_map, prebuilt_vis, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
-
         except Exception as e:
             _log_step_failure('prebuilt clip layer', e)
 
