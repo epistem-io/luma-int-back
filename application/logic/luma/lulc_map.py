@@ -239,17 +239,25 @@ def generate(known_session, known_aoi, aoi, luma, classes):
                 year=luma.start_date.year,
                 scheme_classes=manager.classes,
             )
+            print('prebuilt --------------------------------------------------------------------- results')
+            print('prebuilt --------------------------------------------------------------------- results')
+            print('prebuilt --------------------------------------------------------------------- results')
+            print('prebuilt --------------------------------------------------------------------- results')
+            print('prebuilt --------------------------------------------------------------------- results')
+            print(prebuilt)
+            print('prebuilt --------------------------------------------------------------------- results')
+            print('prebuilt --------------------------------------------------------------------- results')
+            print('prebuilt --------------------------------------------------------------------- results')
+            print('prebuilt --------------------------------------------------------------------- results')
+            print('prebuilt --------------------------------------------------------------------- results')
             reclassified_map, _info = lulc.reclassify_map_by_classes(
                 classification_map=prebuilt['final_map'],
                 classification_df=scheme_df,
                 selected_classes=selection,
             )
-            selection_df = scheme_df[scheme_df['ID'].isin([int(c.class_id) for c in classes])].sort_values('ID')
-            prebuilt_vis = {
-                'min': int(selection_df['ID'].min()),
-                'max': int(selection_df['ID'].max()),
-                'palette': selection_df['Color Palette'].tolist()
-            }
+            reclassified_map = reclassified_map.updateMask(reclassified_map.neq(999))
+            prebuilt_vis = prebuilt['vis_params']
+            prebuilt_vis['bands'] = ['remapped']
             Map.addLayer(reclassified_map, prebuilt_vis, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
         except Exception as e:
             _log_step_failure('prebuilt clip layer', e)
