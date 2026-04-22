@@ -244,11 +244,11 @@ def generate(known_session, known_aoi, aoi, luma, classes):
                 classification_df=scheme_df,
                 selected_classes=selection,
             )
-            selection_df = scheme_df[scheme_df['class_id'].isin([int(c.class_id) for c in classes])].sort_values('class_id')
+            selection_df = scheme_df[scheme_df['ID'].isin([int(c.class_id) for c in classes])].sort_values('ID')
             prebuilt_vis = {
-                'min': int(selection_df['class_id'].min()),
-                'max': int(selection_df['class_id'].max()),
-                'palette': selection_df['class_color'].tolist()
+                'min': int(selection_df['ID'].min()),
+                'max': int(selection_df['ID'].max()),
+                'palette': selection_df['Color Palette'].tolist()
             }
             Map.addLayer(reclassified_map, prebuilt_vis, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
 
