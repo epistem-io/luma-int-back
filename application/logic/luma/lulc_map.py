@@ -244,15 +244,14 @@ def generate(known_session, known_aoi, aoi, luma, classes):
                 classification_df=scheme_df,
                 selected_classes=selection,
             )
-            selected_id_set = {int(i) for i in selection['classes_of_interest']}
-            selected_entries = [sc for sc in manager.classes if int(sc['ID']) in selected_id_set]
-            if selected_entries:
-                reclass_ids = [int(sc['ID']) for sc in selected_entries] + [999]
-                reclass_colors = [sc['Color Code'] for sc in selected_entries] + ['#BDBDBD']
-                vis_ids = list(range(1, len(reclass_ids) + 1))
-                vis_map = reclassified_map.remap(reclass_ids, vis_ids)
-                reclass_vis = { 'min': 1, 'max': len(vis_ids), 'palette': reclass_colors }
-                Map.addLayer(vis_map, reclass_vis, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
+            selection_df = scheme_df[scheme_df['class_id'].isin([int(c.class_id) for c in classes])].sort_values('class_id')
+            prebuilt_vis = {
+                'min': int(selection_df['class_id'].min()),
+                'max': int(selection_df['class_id'].max()),
+                'palette': selection_df['class_color'].tolist()
+            }
+            Map.addLayer(reclassified_map, prebuilt_vis, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
+
         except Exception as e:
             _log_step_failure('prebuilt clip layer', e)
 
