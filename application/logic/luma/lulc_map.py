@@ -250,15 +250,11 @@ def generate(known_session, known_aoi, aoi, luma, classes):
             print('prebuilt --------------------------------------------------------------------- results')
             print('prebuilt --------------------------------------------------------------------- results')
             print('prebuilt --------------------------------------------------------------------- results')
-            reclassified_map, _info = lulc.reclassify_map_by_classes(
-                classification_map=prebuilt['final_map'],
-                classification_df=scheme_df,
-                selected_classes=selection,
-            )
-            reclassified_map = reclassified_map.updateMask(reclassified_map.neq(999))
-            prebuilt_vis = prebuilt['vis_params']
-            prebuilt_vis['bands'] = ['remapped']
-            Map.addLayer(reclassified_map, prebuilt_vis, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
+            selected_ids = selection['classes_of_interest']
+            prebuilt_map = prebuilt['final_map']
+            keep_mask = prebuilt_map.remap(selected_ids, [1] * len(selected_ids), 0)
+            masked_map = prebuilt_map.updateMask(keep_mask)
+            Map.addLayer(masked_map, prebuilt['vis_params'], 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
         except Exception as e:
             _log_step_failure('prebuilt clip layer', e)
 
