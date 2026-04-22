@@ -93,13 +93,25 @@ def iterate_classes(known_session, classes):
     return all_classes_dict
 
 
-def set_default_classes(known_session):
-    delete(known_session)
+def get_default_classes_list():
     default_classes = LULC_Scheme_Manager.get_default_schemes()
     default_classes = default_classes[list(default_classes.keys())[0]]
-    default_classes = [{
+    return [{
         'id': n.get('ID'),
         'class': n.get('Class Name'),
         'color': n.get('Color Code')
     } for n in default_classes]
-    return iterate_classes(known_session, default_classes)
+
+
+def matches_default(classes):
+    defaults = get_default_classes_list()
+    if len(classes) != len(defaults):
+        return False
+    existing = sorted([(c.class_id, c.class_name, c.class_color) for c in classes])
+    expected = sorted([(d['id'], d['class'], d['color']) for d in defaults])
+    return existing == expected
+
+
+def set_default_classes(known_session):
+    delete(known_session)
+    return iterate_classes(known_session, get_default_classes_list())

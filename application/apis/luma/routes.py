@@ -253,9 +253,11 @@ def get_luma_summary():
 
     train_data = training_data.get(known_session)
     if not train_data:
-        lulc_classes.set_default_classes(known_session)
+        classes = lulc_classes.get(known_session)
+        if not classes or not lulc_classes.matches_default(classes):
+            lulc_classes.set_default_classes(known_session)
         training_data.set_default_training_points(known_session)
-    
+
     train_data_summary = training_data.get_summary(known_session)
 
     results = {
