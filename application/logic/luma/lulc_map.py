@@ -226,16 +226,28 @@ def generate(known_session, known_aoi, aoi, luma, classes):
             Map.addLayer(classification_result, vis_params, 'Land Cover Classification')
 
         try:
-            scheme_classes = LULC_Scheme_Manager.get_default_schemes()[PREBUILT_SCHEME]
+            manager = LULC_Scheme_Manager()
+            manager.load_default_scheme(PREBUILT_SCHEME)
+            scheme_df = manager.get_dataframe()
             prebuilt = lulc.classify_from_prebuilt(
                 scheme_name=PREBUILT_SCHEME,
                 aoi=aoi,
                 year=luma.start_date.year,
-                scheme_classes=scheme_classes,
+                scheme_classes=manager.classes,
             )
-            Map.addLayer(prebuilt['final_map'], prebuilt['vis_params'], 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
+            selected_ids = [c.class_id for c in classes]
+            scheme_filtered = scheme_df[scheme_df['ID'].isin(selected_ids)]
+            from_ids = scheme_filtered['ID'].tolist()
+            if from_ids:
+                vis_ids = list(range(1, len(from_ids) + 1))
+                other_id = len(vis_ids) + 1
+                palette = scheme_filtered['Color Palette'].tolist() + ['#BDBDBD']
+                vis_map = prebuilt['final_map'].remap(from_ids, vis_ids, other_id)
+                vis_params = { 'min': 1, 'max': other_id, 'palette': palette }
+                Map.addLayer(vis_map, vis_params, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
         except Exception as e:
             _log_step_failure('prebuilt clip layer', e)
+            raise Exception('error prebuilt')
 
         for m in Map.ee_layer_dict.keys():
             d = Map.ee_layer_dict[m]
