@@ -103,15 +103,31 @@ def get_default_classes_list():
     } for n in default_classes]
 
 
-def matches_default(classes):
+def remove_non_default(classes, commit=True):
     defaults = get_default_classes_list()
-    if len(classes) != len(defaults):
-        return False
-    existing = sorted([(c.class_id, c.class_name, c.class_color) for c in classes])
-    expected = sorted([(d['id'], d['class'], d['color']) for d in defaults])
-    return existing == expected
+    expected = {(str(d['id']), str(d['class']).lower()) for d in defaults}
+    kept = []
+    removed = False
+    for c in classes:
+        if (str(c.class_id), str(c.class_name).lower()) in expected:
+            kept.append(c)
+        else:
+            db.session.delete(c)
+            removed = True
+    if removed and commit:
+        db.session.commit()
+    return kept
 
 
 def set_default_classes(known_session):
     delete(known_session)
     return iterate_classes(known_session, get_default_classes_list())
+
+
+def ensure_valid_classes(known_session):
+    classes = get(known_session)
+    if not classes:
+        return set_default_classes(known_session)
+    if not remove_non_default(classes):
+        return set_default_classes(known_session)
+    return classes
