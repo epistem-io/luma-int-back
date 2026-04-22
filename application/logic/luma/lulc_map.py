@@ -228,26 +228,26 @@ def generate(known_session, known_aoi, aoi, luma, classes):
         try:
             manager = LULC_Scheme_Manager()
             manager.load_default_scheme(PREBUILT_SCHEME)
-            scheme_df = manager.get_dataframe()
             prebuilt = lulc.classify_from_prebuilt(
                 scheme_name=PREBUILT_SCHEME,
                 aoi=aoi,
                 year=luma.start_date.year,
                 scheme_classes=manager.classes,
             )
-            selected_ids = [c.class_id for c in classes]
-            scheme_filtered = scheme_df[scheme_df['ID'].isin(selected_ids)]
-            from_ids = scheme_filtered['ID'].tolist()
-            if from_ids:
+            selected_ids = {int(c.class_id) for c in classes}
+            selected_entries = [sc for sc in manager.classes if int(sc['ID']) in selected_ids]
+            if selected_entries:
+                from_ids = [int(sc['ID']) for sc in selected_entries]
                 vis_ids = list(range(1, len(from_ids) + 1))
                 other_id = len(vis_ids) + 1
-                palette = scheme_filtered['Color Palette'].tolist() + ['#BDBDBD']
-                vis_map = prebuilt['final_map'].remap(from_ids, vis_ids, other_id)
+                palette = [sc['Color Code'] for sc in selected_entries] + ['#BDBDBD']
+                prebuilt_img = prebuilt['final_map']
+                band_name = prebuilt_img.bandNames().get(0).getInfo()
+                vis_map = prebuilt_img.remap(from_ids, vis_ids, other_id, band_name)
                 vis_params = { 'min': 1, 'max': other_id, 'palette': palette }
                 Map.addLayer(vis_map, vis_params, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
         except Exception as e:
             _log_step_failure('prebuilt clip layer', e)
-            raise Exception('error prebuilt')
 
         for m in Map.ee_layer_dict.keys():
             d = Map.ee_layer_dict[m]
