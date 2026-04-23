@@ -11,9 +11,14 @@ from luma_ge.classification_scheme import LULC_Scheme_Manager
 def get(known_session):
     return LulcClass.query.filter_by(session_id=known_session.id).all()
 
+# DEFAULT_CLASS_COLORS = [
+#     '#EFC6D5', '#CC4778', '#99355A', '#F0F921', '#C0C71A',
+#     '#909514', '#54570C', '#D7B1E4', '#650386', '#39024C'
+# ]
+
 DEFAULT_CLASS_COLORS = [
-    '#EFC6D5', '#CC4778', '#99355A', '#F0F921', '#C0C71A',
-    '#909514', '#54570C', '#D7B1E4', '#650386', '#39024C'
+    "#EFC6D5", "#CC4778", "#FB7C54", "#FBC12D", "#A2A9F1",
+    "#8E9231", "#00DF82", "#015F4D", "#043DCD", "#0372FF"
 ]
 
 def process(known_session, classes, file, extension):
