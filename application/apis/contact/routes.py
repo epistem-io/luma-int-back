@@ -42,4 +42,4 @@ def contact_submit():
         message=message,
     )
 
-    return make_response(jsonify(success_handler(result)), 200)
+    return make_response(jsonify(success_handler({ })), 200)
