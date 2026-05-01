@@ -69,6 +69,9 @@ def create_app():
         from .apis.luma import luma_apis_blueprint
         app.register_blueprint(luma_apis_blueprint, url_prefix='/api/v1/luma')
 
+        from .apis.contact import contact_apis_blueprint
+        app.register_blueprint(contact_apis_blueprint, url_prefix='/api/v1/contact')
+
         from .apis import apis_blueprint
         app.register_blueprint(apis_blueprint, url_prefix='/api/v1')
     

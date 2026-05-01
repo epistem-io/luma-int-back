@@ -166,3 +166,10 @@ def get_json(s: str):
     except Exception as e:
         print('error when load json: ', str(e))
         return None
+
+def render_html_template(path: str, **kwargs) -> str:
+    with open(path, 'r', encoding='utf-8') as f:
+        html = f.read()
+    for key, value in kwargs.items():
+        html = html.replace('{{' + key + '}}', value)
+    return html

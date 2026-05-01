@@ -28,6 +28,11 @@ class Config:
 
     GCS_BUCKET_NAME = os.environ.get('GCS_BUCKET_NAME')
 
+    MAIL_SMTP_HOST = os.environ.get('MAIL_SMTP_HOST', 'smtp.gmail.com')
+    MAIL_SMTP_PORT = int(os.environ.get('MAIL_SMTP_PORT', 587))
+    MAIL_SENDER = os.environ.get('MAIL_SENDER', 'webdev@epistem.io')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', '')
+
 class DevelopmentConfig(Config):
     ENV = "development"
     DEBUG = True
