@@ -74,7 +74,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     class_property = 'class_id'
     class_name_property = 'class_name'
     pixel_size = 30
-    split_ratio = 0.5
+    split_ratio = 0.7
     scale = 30
     reflectance = Reflectance_Data()
     lulc = Generate_LULC()
