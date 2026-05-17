@@ -20,7 +20,10 @@ def save_param(
             end_date=end_date,
             landsat_version=landsat_version,
             cloud_cover=cloud_cover,
-            spatial_resolution=spatial_resolution
+            spatial_resolution=spatial_resolution,
+            ntrees=300,
+            min_leaf=2,
+            use_predictor=False
         )
         db.session.add(known_luma)
         db.session.commit()
