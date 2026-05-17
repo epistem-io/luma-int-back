@@ -60,7 +60,6 @@ class Account(UserMixin, db.Model):
             return map_attr(self, attr)
         
         return {
-            'uid': self.uid,
             'email': self.email,
             'fullname': self.fullname,
             'organization_name': self.organization_name

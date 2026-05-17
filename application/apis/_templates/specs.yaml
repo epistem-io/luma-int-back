@@ -71,11 +71,11 @@ paths:
                 fullname:
                   type: string
                   examples:
-                    - Jane Doe
+                    - Jane Ping
                 organization_name:
                   type: string
                   examples:
-                    - Acme Corp
+                    - Epistem Corp
   /api/v1/users/account/resend-verification:
     post:
       tags:
@@ -223,7 +223,7 @@ paths:
                     - b06e52c5-694d-4890-9a0e-ae9e4a581da5
         required: true
         description: ""
-  /api/v1/users/me:
+  /api/v1/users/account/me:
     get:
       tags:
         - User module
@@ -237,15 +237,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/Account"
           description: Success
-        "400":
-          $ref: "#/components/responses/Bad Request"
         "401":
           $ref: "#/components/responses/No Auth"
         "500":
           $ref: "#/components/responses/Internal Server Error"
       parameters: []
       description: get current logged in user information
-      operationId: me
+      operationId: accountMe
   /api/v1/luma/lulc-map:
     get:
       tags:
@@ -1107,15 +1105,9 @@ components:
       type: object
       required:
         - email
-        - password
         - fullname
-        - id
-        - is_admin
+        - organization_name
       properties:
-        id:
-          type: string
-          examples:
-            - ad300364-1684-4be3-9052-a61a6d897ae9
         email:
           type: string
           examples:
@@ -1124,12 +1116,10 @@ components:
           type: string
           examples:
             - Dev
-        is_admin:
-          type: boolean
-        password:
+        organization_name:
           type: string
           examples:
-            - hashed
+            - Acme Corp
       description: user account models
     Geometry:
       type: object

@@ -16,7 +16,7 @@ from application.logic.user.account import AccountLogic
 
 # utils
 from application.utils.common import AppMessageException, get_date, set_attr, get_default_list_param
-from application.utils.common import app_exception_handler, success_handler
+from application.utils.common import app_exception_handler, success_handler, ErrorCodeEnum
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -32,6 +32,20 @@ def load_user_from_request(request):
             if user.api_key_expires > get_date():
                 return user
     return None
+
+@user_apis_blueprint.route('/account/me', methods=['GET'])
+@cross_origin()
+def user_account_me():
+    g_var.__api_name__ = 'user_account_me'
+    g_var.__api_description__ = 'get current user'
+
+    try:
+        if not current_user.is_authenticated:
+            return make_response(jsonify(app_exception_handler(AppMessageException('not authenticated', error=ErrorCodeEnum.ERR_NOAUTH), services=g_var.__api_name__)), 401)
+        return make_response(jsonify(success_handler(current_user.to_json())), 200)
+    except Exception as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 500)
+
 
 @user_apis_blueprint.route('/account/signup', methods=['POST'])
 @cross_origin()
