@@ -1119,7 +1119,7 @@ components:
         organization_name:
           type: string
           examples:
-            - Acme Corp
+            - Epistem Corp
       description: user account models
     Geometry:
       type: object
