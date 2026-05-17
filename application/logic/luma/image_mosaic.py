@@ -9,7 +9,8 @@ def generate(
     start_date:str,
     end_date:str,
     landsat_version:str = 'L8_SR',
-    cloud_cover:int = 30):
+    cloud_cover:int = 30,
+    spatial_resolution:int = 30):
 
     optical_data = landsat_version
     
@@ -142,7 +143,7 @@ def generate(
     results['download_url'] = composite.getDownloadURL({
         "name": 'LULC_{sensor}_{start_date}_{end_date}'.format(sensor=optical_data, start_date=start_date, end_date=end_date),
         "crs": 'EPSG:4326', # default
-        "scale": 30, # default
+        "scale": spatial_resolution, # default
         "region": aoi,
         "filePerBand": False,
         "fileFormat": "GEO_TIFF",

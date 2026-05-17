@@ -345,6 +345,53 @@ paths:
           required: false
           description: ""
           allowReserved: false
+        - in: query
+          name: landsat_version
+          style: form
+          schema:
+            type: string
+            examples:
+              - L8_SR
+            enum:
+              - L1_RAW
+              - L2_RAW
+              - L3_RAW
+              - L4_SR
+              - L5_SR
+              - L7_SR
+              - L8_SR
+              - L9_SR
+          explode: true
+          required: false
+          description: "default: L8_SR"
+          allowReserved: false
+        - in: query
+          name: cloud_cover
+          style: form
+          schema:
+            type: integer
+            examples:
+              - 30
+          explode: true
+          required: false
+          description: "0–50, default: 30"
+          allowReserved: false
+        - in: query
+          name: spatial_resolution
+          style: form
+          schema:
+            type: integer
+            examples:
+              - 30
+            enum:
+              - 30
+              - 100
+              - 500
+              - 1000
+          explode: true
+          required: false
+          description: "default: 30"
+          allowReserved: false
       description: get image mosaic earth engine layers
       operationId: imageMosaicGet
   /api/v1/luma/lulc-classes:
@@ -750,6 +797,63 @@ paths:
                   type: string
                   examples:
                     - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+  /api/v1/luma/predictor:
+    post:
+      tags:
+        - Luma module
+      summary: predictor config update
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: PredictorPostOk
+                required:
+                  - message
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - success
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: set predictor configuration (ntrees, min_leaf, predictors)
+      operationId: predictorPost
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - session_id
+              properties:
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+                min_leaf:
+                  type: integer
+                  examples:
+                    - 2
+                  description: minimum leaf size, default 2
+                ntrees:
+                  type: integer
+                  examples:
+                    - 300
+                  description: number of trees, default 300
+                predictors:
+                  type: array
+                  items:
+                    type: string
+                  description: list of predictor band names
+        required: true
 openapi: 3.1.0
 servers:
   - url: http://someserversurl.com
@@ -789,18 +893,20 @@ components:
     Luma:
       type: object
       required:
+        - id
         - session_id
         - start_date
         - end_date
         - landsat_version
         - cloud_cover
+        - spatial_resolution
         - created_date
         - modified_date
       properties:
-        end_date:
+        id:
           type: string
           examples:
-            - 2020-01-01T00:00:00
+            - b06e52c5-694d-4890-9a0e-ae9e4a581da5
         session_id:
           type: string
           examples:
@@ -809,10 +915,37 @@ components:
           type: string
           examples:
             - 2020-01-01T00:00:00
+        end_date:
+          type: string
+          examples:
+            - 2020-01-01T00:00:00
+        landsat_version:
+          type: string
+          examples:
+            - L8_SR
         cloud_cover:
           type: integer
           examples:
             - 30
+        spatial_resolution:
+          type: integer
+          examples:
+            - 30
+        ntrees:
+          type: integer
+          examples:
+            - 300
+        min_leaf:
+          type: integer
+          examples:
+            - 2
+        predictor_config:
+          type: object
+          nullable: true
+        use_predictor:
+          type: boolean
+          examples:
+            - false
         created_date:
           type: string
           examples:
@@ -821,10 +954,6 @@ components:
           type: string
           examples:
             - 2020-01-01T00:00:00
-        landsat_version:
-          type: string
-          examples:
-            - L8_SR
       description: ""
     Account:
       type: object

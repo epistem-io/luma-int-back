@@ -102,7 +102,14 @@ def process_zip_and_get_polygon(filepath, session_id, upload_folder):
         # aoi = converter.convert_aoi_gdf(gdf_cleaned)
         # if aoi is None:
         #     raise AppMessageException('Gagal memuat wilayah kajian ke server', error=ErrorCodeEnum.ERR_VALIDATION)
-        
+
+        # Drop Z coordinates — EE rejects 3D geometries
+        _drop_z = lambda geom: wkb.loads(wkb.dumps(geom, output_dimension=2))
+        gdf_cleaned["geometry"] = gdf_cleaned["geometry"].apply(_drop_z)
+
+        # Dissolve multiple features into one AOI polygon
+        gdf_cleaned = gdf_cleaned.dissolve()
+
         return gdf_cleaned.to_json()
         # return aoi_union_proj.to_json()
     except Exception as e:

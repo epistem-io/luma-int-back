@@ -17,7 +17,7 @@ import arrow
 # logic
 from application.logic.geos import aoi as aoi_logic
 from application.logic.user import session as session_logic
-from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map
+from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor
 from application.logic.geos import gee_utils
 
 # utils
@@ -40,6 +40,7 @@ def generate_image_mosaic():
     end_date = data.get('end_date')
     landsat_version = data.get('landsat_version', 'L8_SR')
     cloud_cover = data.get('cloud_cover', 30)
+    spatial_resolution = data.get('spatial_resolution', 30)
 
     if not start_date:
         raise AppMessageException('please input: start date, format: yyyy-mm-dd', error=ErrorCodeEnum.ERR_VALIDATION)
@@ -69,13 +70,24 @@ def generate_image_mosaic():
         if cloud_cover < 0 or cloud_cover > 50:
             raise AppMessageException('invalid input: cloud cover, format: positive number, max 50', error=ErrorCodeEnum.ERR_VALIDATION)
     
+    if spatial_resolution:
+        try:
+            spatial_resolution = int(spatial_resolution)
+        except Exception as e:
+            raise AppMessageException('invalid input: spatial resolution, format: positive number, choices (30, 100, 500, 1000)', error=ErrorCodeEnum.ERR_VALIDATION)
+        if spatial_resolution not in (30, 100, 500, 1000):
+            raise AppMessageException('invalid input: spatial resolution, format: positive number, choices (30, 100, 500, 1000)', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    if landsat_version not in ('L1_RAW', 'L2_RAW', 'L3_RAW', 'L4_SR', 'L5_SR', 'L7_SR', 'L8_SR', 'L9_SR'):
+        landsat_version = 'L8_SR'
+    
     known_session = session_logic.get_session(session_id, validate=True)
     known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
 
     # test.test_load_training_data(aoi)
 
-    mosaic_results = image_mosaic.generate(aoi, start_date, end_date, landsat_version, cloud_cover)
-    luma_logic.save_param(known_session, start_date, end_date, landsat_version, cloud_cover)
+    mosaic_results = image_mosaic.generate(aoi, start_date, end_date, landsat_version, cloud_cover, spatial_resolution)
+    luma_logic.save_param(known_session, start_date, end_date, landsat_version, cloud_cover, spatial_resolution)
 
     results = {
         'message': 'success',
@@ -235,6 +247,50 @@ def training_data_delete():
     }
 
     return make_response(jsonify(success_handler(results)), 200)
+
+
+@luma_apis_blueprint.route('/predictor', methods=['POST'])
+@cross_origin()
+def post_predictor():
+    g_var.__api_name__ = 'post_predictor'
+    g_var.__api_description__ = 'post_predictor'
+    
+    data = request.form
+
+    session_id = data.get('session_id', '')
+    min_leaf = data.get('min_leaf', 2)
+    ntrees = data.get('ntrees', 300)
+    predictors = data.get('predictors', [])
+
+    if min_leaf:
+        try:
+            min_leaf = int(min_leaf)
+        except Exception as e:
+            raise AppMessageException('invalid input: min leaf, format: positive number', error=ErrorCodeEnum.ERR_VALIDATION)
+        if min_leaf < 0:
+            raise AppMessageException('invalid input: min leaf, format: positive number', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    if ntrees:
+        try:
+            ntrees = int(ntrees)
+        except Exception as e:
+            raise AppMessageException('invalid input: ntrees, format: positive number', error=ErrorCodeEnum.ERR_VALIDATION)
+        if ntrees < 0:
+            raise AppMessageException('invalid input: ntrees, format: positive number', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    if predictors:
+        if not isinstance(predictors, list):
+            raise AppMessageException('invalid input: predictor, format: list', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
+
+    luma.ntrees = ntrees
+    luma.min_leaf = min_leaf
+    
+    predictor.set_predictor_config(known_session, luma, predictors)
+
+    return make_response(jsonify(success_handler({ 'message': 'success' })), 200)
 
 
 @luma_apis_blueprint.route('/input-summary', methods=['GET'])

@@ -13,6 +13,7 @@ from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_
 from luma_ge.classification import FeatureExtraction, Generate_LULC
 from luma_ge.classification_scheme import LULC_Scheme_Manager
 from luma_ge.sample_data_quality import sample_quality, spectral_plotter
+from luma_ge.predictor import PredictorCalculation
 
 PREBUILT_SCHEME = 'RESTORE+ Project'
 
@@ -31,11 +32,19 @@ def forge_process(step, data):
 
 processes = [
     { 'name': 'preparation', 'w': 0.1 },
+    { 'name': 'get training data', 'w': 0.1 },
+
+    # -- composite process
     { 'name': 'get optical data', 'w': 0.1 },
     { 'name': 'get thermal bands', 'w': 2.0 },
     { 'name': 'check image count', 'w': 8.0 },
     { 'name': 'create image composite', 'w': 0.1 },
-    { 'name': 'get training data', 'w': 0.1 },
+    # -- composite process
+
+    # -- predictors process
+    { 'name': 'process predictors', 'w': 5.0 },
+    # -- predictors process
+
     { 'name': 'split training data', 'w': 3.0 },
     { 'name': 'model training & classification', 'w': 0.1 },
     { 'name': 'visualization', 'w': 3.0 },
@@ -58,6 +67,10 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     thermal_data = optical_data.replace('_SR', '_TOA')
     start_date = luma.start_date.strftime('%Y-%m-%d')
     end_date = luma.end_date.strftime('%Y-%m-%d')
+    predictor_config = luma.predictor_config
+    ntrees = luma.ntrees
+    min_leaf = luma.min_leaf
+    use_predictor = luma.use_predictor
     yield forge_process(step, { 'processes': processes })
 
     collection = None
@@ -78,6 +91,31 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     scale = 30
     reflectance = Reflectance_Data()
     lulc = Generate_LULC()
+
+    #region get training data
+    try:
+        train_gdf = gpd.read_postgis(
+            db.text(
+            '''
+            select
+                class_id,
+                class_name,
+                class_color,
+                geom geometry
+            from luma_training_data
+            where session_id = :session_id
+            order by class_id
+            '''
+            ),
+            db.engine,
+            geom_col='geometry',
+            params={'session_id': known_session.id}
+        )
+    except Exception as e:
+        _log_step_failure('get training data', e)
+    step = step + 1
+    yield forge_process(step, {})
+    #endregion
 
     #region get optical data
     try:
@@ -151,30 +189,22 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     yield forge_process(step, {})
     #endregion
 
-    #region get training data
-    try:
-        train_gdf = gpd.read_postgis(
-            db.text(
-            '''
-            select
-                class_id,
-                class_name,
-                class_color,
-                geom geometry
-            from luma_training_data
-            where session_id = :session_id
-            order by class_id
-            '''
-            ),
-            db.engine,
-            geom_col='geometry',
-            params={'session_id': known_session.id}
-        )
-    except Exception as e:
-        _log_step_failure('get training data', e)
+    #region predictors
+    if use_predictor:
+        try:
+            predictor_service = PredictorCalculation()
+            result = predictor_service.compute_predictors(
+                    composite=image,
+                    aoi=aoi,
+                    predictor_config=predictor_config,
+                    collection=collection,
+                )
+            image = result['stacked_predictors']
+        except Exception as e:
+            _log_step_failure('process predictors', e)
     step = step + 1
     yield forge_process(step, {})
-    #endregion
+    #endregion predictors
 
     #region stratified split training data
     try:
@@ -201,9 +231,9 @@ def generate(known_session, known_aoi, aoi, luma, classes):
                 training_data=train_data_split,
                 class_property=class_property,
                 image=image,
-                ntrees=300,
+                ntrees=ntrees,
                 v_split=None,
-                min_leaf=2,
+                min_leaf=min_leaf,
                 return_model=True
             )
     except Exception as e:
@@ -216,14 +246,17 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     try:
         Map = geemap.Map()
         Map.centerObject(aoi, 8)
-        if classification_result is not None and train_gdf is not None:
-            unique_df = train_gdf[['class_id', 'class_color']].drop_duplicates('class_id').sort_values('class_id')
-            vis_params = {
-                'min': int(unique_df['class_id'].min()),
-                'max': int(unique_df['class_id'].max()),
-                'palette': unique_df['class_color'].tolist()
-            }
-            Map.addLayer(classification_result, vis_params, 'Land Cover Classification')
+        try:
+            if classification_result is not None and train_gdf is not None:
+                unique_df = train_gdf[['class_id', 'class_color']].drop_duplicates('class_id').sort_values('class_id')
+                vis_params = {
+                    'min': int(unique_df['class_id'].min()),
+                    'max': int(unique_df['class_id'].max()),
+                    'palette': unique_df['class_color'].tolist()
+                }
+                Map.addLayer(classification_result, vis_params, 'Land Cover Classification')
+        except Exception as e:
+            _log_step_failure('visualization classification result layer', e)
 
         try:
             manager = LULC_Scheme_Manager()
@@ -260,7 +293,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
             prebuilt_vis['bands'] = ['remapped']
             Map.addLayer(reclassified_map, prebuilt_vis, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
         except Exception as e:
-            _log_step_failure('prebuilt clip layer', e)
+            _log_step_failure('visualization prebuilt clip layer', e)
 
         for m in Map.ee_layer_dict.keys():
             d = Map.ee_layer_dict[m]

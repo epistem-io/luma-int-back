@@ -6,6 +6,8 @@ from application.utils.common import get_date, map_attr, get_uuid
 from geoalchemy2 import Geometry
 import json
 
+from sqlalchemy.dialects.postgresql import JSONB
+
 class Luma(db.Model):
     __tablename__ = 'luma_general'
     id = db.Column(db.String(36), primary_key=True, default=get_uuid)
@@ -17,6 +19,11 @@ class Luma(db.Model):
     end_date = db.Column(db.DateTime, nullable=True)
     landsat_version = db.Column(db.String(10), nullable=True)
     cloud_cover = db.Column(db.Integer, nullable=True)
+    spatial_resolution = db.Column(db.Integer, nullable=True)
+    ntrees = db.Column(db.Integer, nullable=True)
+    min_leaf = db.Column(db.Integer, nullable=True)
+    predictor_config = db.Column(JSONB, nullable=True)
+    use_predictor = db.Column(db.Boolean, default=False)
     
     created_date = db.Column(db.DateTime, default=get_date)
     modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)
@@ -31,6 +38,11 @@ class Luma(db.Model):
             'end_date': self.end_date.isoformat() if self.end_date else None,
             'landsat_version': self.landsat_version,
             'cloud_cover': self.cloud_cover,
+            'spatial_resolution': self.spatial_resolution,
+            'ntrees': self.ntrees,
+            'min_leaf': self.min_leaf,
+            'predictor_config': self.predictor_config,
+            'use_predictor': self.use_predictor,
             'session_id': self.session_id,
 
             'created_date': self.created_date.isoformat() if self.created_date else None,

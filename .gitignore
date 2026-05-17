@@ -4,6 +4,8 @@ temp_file/
 generated-file/
 build_runner/cloudbuild.yaml
 gcp-sa.json
+*graphify*
+.claude/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
