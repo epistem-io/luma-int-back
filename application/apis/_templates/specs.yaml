@@ -171,6 +171,60 @@ paths:
                   minLength: 8
                   examples:
                     - MyP@ssw0rd
+  /api/v1/users/account/login:
+    post:
+      tags:
+        - User module
+      summary: login
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: LoginOk
+                required:
+                  - api_key
+                  - api_key_expires
+                  - user
+                properties:
+                  api_key:
+                    type: string
+                    examples:
+                      - abc123xyz
+                  api_key_expires:
+                    type: string
+                    examples:
+                      - 2026-05-19T10:00:00
+                  user:
+                    $ref: "#/components/schemas/Account"
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: Authenticate with email and password. Returns an API key valid for
+        subsequent requests via the `Authorization` header.
+      operationId: accountLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  examples:
+                    - user@example.com
+                password:
+                  type: string
+                  examples:
+                    - MyP@ssw0rd
   /api/v1/geos/aoi:
     post:
       tags:
