@@ -1,4 +1,5 @@
 # application/models/users/account.py
+from sqlalchemy import Nullable
 from application import db
 
 from flask import current_app
@@ -18,11 +19,17 @@ class Account(UserMixin, db.Model):
     
     email = db.Column(db.String(256), nullable=False, index=True)
     password = db.Column(db.String(256), unique=False, nullable=False)
+    fullname = db.Column(db.String(256), nullable=True)
+    organization_name = db.Column(db.String(256), nullable=True)
 
     is_admin = db.Column(db.Boolean, default=False)
 
     api_key = db.Column(db.String(255), unique=True, nullable=True)
     api_key_expires = db.Column(db.DateTime, default=get_date)
+
+    signup_token = db.Column(db.String(255), unique=True, nullable=True)
+    signup_token_expires = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=False)
 
     rowstatus = db.Column(db.Integer, default=1)
     created_by = db.Column(db.String(100), nullable=True)
@@ -33,6 +40,11 @@ class Account(UserMixin, db.Model):
     def encode_api_key(self) -> None:
         self.api_key = sha256_crypt.hash(self.email + str(get_date()))
         self.api_key_expires = get_date() + timedelta(hours=24)
+
+    def encode_signup_token(self) -> None:
+        import uuid
+        self.signup_token = str(uuid.uuid4())
+        self.signup_token_expires = get_date() + timedelta(hours=24)
 
     def encode_password(self) -> None:
         self.password = sha256_crypt.hash(self.password)
@@ -50,6 +62,8 @@ class Account(UserMixin, db.Model):
         return {
             'uid': self.uid,
             'email': self.email,
+            'fullname': self.fullname,
+            'organization_name': self.organization_name
         }
 
 

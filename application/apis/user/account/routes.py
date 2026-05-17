@@ -33,6 +33,88 @@ def load_user_from_request(request):
                 return user
     return None
 
+@user_apis_blueprint.route('/account/signup', methods=['POST'])
+@cross_origin()
+def user_account_signup():
+    g_var.__api_name__ = 'user_account_signup'
+    g_var.__api_description__ = 'user account signup'
+
+    try:
+        if not request.is_json:
+            raise AppMessageException('please provide json data')
+
+        data = request.get_json()
+
+        email = data.get('email')
+        fullname = data.get('fullname')
+        organization_name = data.get('organization_name')
+
+        if not email:
+            raise AppMessageException('please input: email (text mandatory)')
+        if not re.match(r'[^@]+@[^@]+\.[^@]+', email):
+            raise AppMessageException('invalid input format: email')
+        if not fullname:
+            raise AppMessageException('please input: fullname (text mandatory)')
+        if not organization_name:
+            raise AppMessageException('please input: organization_name (text mandatory)')
+
+        return make_response(jsonify(success_handler(AccountLogic.signup(email, fullname, organization_name))), 201)
+    except AppMessageException as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 400)
+    except Exception as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 500)
+
+
+@user_apis_blueprint.route('/account/resend-verification', methods=['POST'])
+@cross_origin()
+def user_account_resend_verification():
+    g_var.__api_name__ = 'user_account_resend_verification'
+    g_var.__api_description__ = 'resend signup verification email'
+
+    try:
+        if not request.is_json:
+            raise AppMessageException('please provide json data')
+
+        data = request.get_json()
+        email = data.get('email')
+
+        if not email:
+            raise AppMessageException('please input: email (text mandatory)')
+        if not re.match(r'[^@]+@[^@]+\.[^@]+', email):
+            raise AppMessageException('invalid input format: email')
+
+        return make_response(jsonify(success_handler(AccountLogic.resend_verification(email))), 200)
+    except AppMessageException as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 400)
+    except Exception as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 500)
+
+
+@user_apis_blueprint.route('/account/set-password/<string:token>', methods=['POST'])
+@cross_origin()
+def user_account_set_password(token):
+    g_var.__api_name__ = 'user_account_set_password'
+    g_var.__api_description__ = 'set password via signup token'
+
+    try:
+        if not request.is_json:
+            raise AppMessageException('please provide json data')
+
+        data = request.get_json()
+        password = data.get('password')
+
+        if not password:
+            raise AppMessageException('please input: password (text mandatory)')
+        if len(password) < 8:
+            raise AppMessageException('password must be at least 8 characters')
+
+        return make_response(jsonify(success_handler(AccountLogic.set_password(token, password))), 200)
+    except AppMessageException as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 400)
+    except Exception as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 500)
+
+
 @user_apis_blueprint.route('/account/login', methods=['POST'])
 @cross_origin()
 def user_account_login():

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin:0;padding:0;background-color:#f4f6f8;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f8;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#1a1a2e;padding:32px 40px;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;letter-spacing:0.5px;">Epistem</h1>
+              <p style="margin:6px 0 0;color:#a0a8c0;font-size:13px;">Account Verification</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 40px;">
+              <p style="margin:0 0 8px;color:#374151;font-size:15px;line-height:1.6;">Hello, <strong>{{full_name}}</strong></p>
+              <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.6;">
+                Your account has been created. Click the button below to set your password. This link expires in <strong>24 hours</strong>.
+              </p>
+
+              <!-- CTA Button -->
+              <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+                <tr>
+                  <td style="background-color:#4f46e5;border-radius:6px;">
+                    <a href="{{set_password_url}}" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;letter-spacing:0.3px;">Set Your Password</a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 8px;color:#6b7280;font-size:13px;">If the button doesn't work, copy and paste this link into your browser:</p>
+              <p style="margin:0;word-break:break-all;">
+                <a href="{{set_password_url}}" style="color:#4f46e5;font-size:13px;text-decoration:none;">{{set_password_url}}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">
+                If you did not sign up for Epistem, you can safely ignore this email.
+                &nbsp;&bull;&nbsp;
+                <a href="https://epistem.io" style="color:#4f46e5;text-decoration:none;">epistem.io</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

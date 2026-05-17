@@ -23,6 +23,154 @@ tags:
     description: The Luma Module provides all endpoints and operations related to
       luma within the system.
 paths:
+  /api/v1/users/account/signup:
+    post:
+      tags:
+        - User module
+      summary: sign up
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: SignupOk
+                required:
+                  - message
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - account created — verification email sent
+          description: Created
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: >-
+        Register a new user account. Sends a verification email containing a
+        set-password link. The account is inactive until the user sets a
+        password via `/account/set-password/{token}`.
+      operationId: accountSignup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - fullname
+                - organization_name
+              properties:
+                email:
+                  type: string
+                  examples:
+                    - user@example.com
+                fullname:
+                  type: string
+                  examples:
+                    - Jane Doe
+                organization_name:
+                  type: string
+                  examples:
+                    - Acme Corp
+  /api/v1/users/account/resend-verification:
+    post:
+      tags:
+        - User module
+      summary: resend verification email
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: ResendVerificationOk
+                required:
+                  - message
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - verification email sent
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: >-
+        Resend the signup verification email. If the previous token has expired
+        a new one is generated. Returns an error if the email is not registered
+        or the account is already active.
+      operationId: accountResendVerification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  examples:
+                    - user@example.com
+  /api/v1/users/account/set-password/{token}:
+    post:
+      tags:
+        - User module
+      summary: set password
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: SetPasswordOk
+                required:
+                  - message
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - password set — you can now log in
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+            examples:
+              - 550e8400-e29b-41d4-a716-446655440000
+          description: Signup verification token received via email
+      description: >-
+        Set the initial password for a newly registered account using the
+        token from the verification email. Token expires after 24 hours.
+        Activates the account on success.
+      operationId: accountSetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  minLength: 8
+                  examples:
+                    - MyP@ssw0rd
   /api/v1/geos/aoi:
     post:
       tags:

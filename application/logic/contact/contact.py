@@ -1,18 +1,14 @@
 # application/logic/contact/contact.py
 import os
-import smtplib
 import logging
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from flask import current_app
-
-from application.utils.common import render_html_template
 
 from application import db
 from application.models.contact import ContactSubmission
 from application.models.master import Settings
+from application.utils.common import render_html_template
+from application.utils.mail import send_email
 
-_TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), '_templates')
+_TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'utils', '_templates')
 
 
 class ContactLogic:
@@ -38,11 +34,6 @@ class ContactLogic:
 
     @staticmethod
     def _send_email(submission: ContactSubmission):
-        smtp_host = current_app.config['MAIL_SMTP_HOST']
-        smtp_port = current_app.config['MAIL_SMTP_PORT']
-        sender = current_app.config['MAIL_SENDER']
-        password = current_app.config['MAIL_PASSWORD']
-
         setting = Settings.find_by_name('CONTACT_MAIL_RECIPIENTS')
         if not setting or not setting.value.strip():
             raise ValueError('contact mail recipients not configured in settings table')
@@ -61,14 +52,4 @@ class ContactLogic:
             message=submission.message,
         )
 
-        msg = MIMEMultipart('alternative')
-        msg['From'] = sender
-        msg['To'] = ', '.join(recipients)
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'html'))
-
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(sender, password)
-            server.sendmail(sender, recipients, msg.as_string())
+        send_email(recipients, subject, body)
