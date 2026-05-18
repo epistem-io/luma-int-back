@@ -5,7 +5,7 @@ from datetime import datetime
 import ee
 from google.cloud import storage
 
-GCS_BUCKET = os.environ.get('LUMA_GCS_BUCKET', '')
+GCS_BUCKET = os.environ.get('GCS_BUCKET_NAME', '')
 POLL_INTERVAL = 15
 EXPORT_TIMEOUT = 3600
 
@@ -13,7 +13,7 @@ EXPORT_TIMEOUT = 3600
 def export_to_gcs(image, filename, aoi, scale, crs='EPSG:4326'):
     """Export EE image to GCS and return a public download URL."""
     if not GCS_BUCKET:
-        raise Exception('LUMA_GCS_BUCKET env var not set')
+        raise Exception('GCS_BUCKET_NAME env var not set')
 
     now = datetime.now()
     image = image.set({

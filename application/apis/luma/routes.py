@@ -279,7 +279,9 @@ def post_predictor():
             raise AppMessageException('invalid input: ntrees, format: positive number', error=ErrorCodeEnum.ERR_VALIDATION)
 
     if predictors:
-        if not isinstance(predictors, list):
+        try:
+            predictors = list(predictors)
+        except:
             raise AppMessageException('invalid input: predictor, format: list', error=ErrorCodeEnum.ERR_VALIDATION)
 
     known_session = session_logic.get_session(session_id, validate=True)
