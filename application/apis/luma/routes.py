@@ -255,7 +255,10 @@ def post_predictor():
     g_var.__api_name__ = 'post_predictor'
     g_var.__api_description__ = 'post_predictor'
     
-    data = request.form
+    if not request.is_json:
+        raise AppMessageException('invalid input: request must be json', error=ErrorCodeEnum.ERR_VALIDATION)
+    
+    data = request.get_json()
 
     session_id = data.get('session_id', '')
     min_leaf = data.get('min_leaf', 2)
