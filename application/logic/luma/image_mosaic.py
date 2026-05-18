@@ -4,6 +4,7 @@ import pandas as pd
 
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
 
+from flask import current_app
 from application.utils.common import get_date
 
 def generate(
@@ -156,16 +157,20 @@ def generate(
         }
     
     # region export
-    band_names = composite.bandNames()
-    composite = composite.select(band_names)
-    results['download_url'] = composite.getDownloadURL({
-        "name": 'LULC_{sensor}_{start_date}_{end_date}'.format(sensor=optical_data, start_date=start_date, end_date=end_date),
-        "crs": 'EPSG:4326', # default
-        "scale": spatial_resolution, # default
-        "region": aoi,
-        "filePerBand": False,
-        "fileFormat": "GEO_TIFF",
-        "formatOptions": {"cloudOptimized": True}
-    })
+    results['download_url'] = ''
+    try:
+        band_names = composite.bandNames()
+        composite = composite.select(band_names)
+        results['download_url'] = composite.getDownloadURL({
+            "name": 'LULC_{sensor}_{start_date}_{end_date}'.format(sensor=optical_data, start_date=start_date, end_date=end_date),
+            "crs": 'EPSG:4326', # default
+            "scale": spatial_resolution, # default
+            "region": aoi,
+            "filePerBand": False,
+            "fileFormat": "GEO_TIFF",
+            "formatOptions": {"cloudOptimized": True}
+        })
+    except Exception as e:
+        current_app.logger.error('failed to get download url: {}'.format(str(e)))
     
     return results
