@@ -4,6 +4,8 @@ import pandas as pd
 
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
 
+from application.utils.common import get_date
+
 def generate(
     aoi:ee.Geometry,
     start_date:str,
@@ -94,6 +96,15 @@ def generate(
         }
     }
 
+    generation_datetime = get_date().strftime('%Y-%m-%d %H:%M:%S')
+    composite = composite.set({
+        'generated_by': 'LUMA',
+        'generation_datetime': generation_datetime,
+        'sensor': optical_data,
+        'start_date': start_date,
+        'end_date': end_date,
+    })
+
     Map = geemap.Map()
     Map.centerObject(aoi, 8)
     Map.addLayer(aoi, {'color': 'red', 'fillColor': '00000000'}, 'Area of Interest (AOI)')
@@ -114,7 +125,14 @@ def generate(
     results = {
         'layers': layers,
         'summary': [],
-        'statistics': {}
+        'statistics': {},
+        'metadata': {
+            'generated_by': 'LUMA',
+            'generation_datetime': generation_datetime,
+            'sensor': optical_data,
+            'start_date': start_date,
+            'end_date': end_date,
+        }
     }
 
     # bottom section

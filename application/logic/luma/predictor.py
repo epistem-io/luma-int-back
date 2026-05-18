@@ -10,21 +10,21 @@ def set_predictor_config(known_session, luma, predictors):
         if p not in {
             "ELEVATION": "Terrain: Elevation",
             "SLOPE"    : "Terrain: Slope",
-            "ASPECT"   : "Terrain: Aspect",
+            # "ASPECT"   : "Terrain: Aspect",
             "NDVI"     : "Vegetasi", 
             "EVI"      : "Vegetasi", 
-            "SAVI"     : "Vegetasi",
-            "MSAVI"    : "Vegetasi",
-            "OSAVI"    : "Vegetasi",
-            "ARVI"     : "Vegetasi",
-            "GBNDVI"   : "Vegetasi",
-            "GNDVI"    : "Vegetasi",
+            # "SAVI"     : "Vegetasi",
+            # "MSAVI"    : "Vegetasi",
+            # "OSAVI"    : "Vegetasi",
+            # "ARVI"     : "Vegetasi",
+            # "GBNDVI"   : "Vegetasi",
+            # "GNDVI"    : "Vegetasi",
             "MNDWI"    : "Air & Kelembaban",
-            "NDMI"     : "Air & Kelembaban",
-            "AWEInsh"  : "Air & Kelembaban",
+            # "NDMI"     : "Air & Kelembaban",
+            # "AWEInsh"  : "Air & Kelembaban",
             "NDBI"     : "Tanah dan Lahan Terbangun",
-            "DBSI"     : "Tanah dan Lahan Terbangun",
-            "MBI"      : "Tanah dan Lahan Terbangun"
+            # "DBSI"     : "Tanah dan Lahan Terbangun",
+            # "MBI"      : "Tanah dan Lahan Terbangun"
         }.keys():
             raise AppMessageException('invalid input: predictor, format: list of valid predictor names', error=ErrorCodeEnum.ERR_VALIDATION)
     
