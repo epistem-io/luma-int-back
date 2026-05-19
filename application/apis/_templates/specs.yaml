@@ -997,6 +997,119 @@ paths:
                   type: string
                   examples:
                     - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+  /api/v1/luma/download-request:
+    post:
+      tags:
+        - Luma module
+      summary: download request
+      security:
+        - Authorization: []
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: DownloadRequestDoneOk
+                required:
+                  - message
+                  - status
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - email sent
+                  status:
+                    type: string
+                    examples:
+                      - done
+          description: Export already done — download link emailed immediately
+        "202":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: DownloadRequestPendingOk
+                required:
+                  - message
+                  - status
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - email will be sent when export completes
+                  status:
+                    type: string
+                    examples:
+                      - pending
+          description: Export in progress — email queued for when it completes
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: >-
+        Request a download link for the LULC map export. If the export job is
+        already done the link is emailed immediately (200). If the job is still
+        running the email is queued and sent upon completion (202). Requires
+        `/lulc-map` to have been run first.
+      operationId: downloadRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - session_id
+              properties:
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+  /api/v1/luma/download-status:
+    get:
+      tags:
+        - Luma module
+      summary: download status
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: DownloadStatusOk
+                required:
+                  - job_id
+                  - status
+                  - download_url
+                properties:
+                  job_id:
+                    type: string
+                    examples:
+                      - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+                  status:
+                    type: string
+                    examples:
+                      - done
+                  download_url:
+                    type: string
+                    nullable: true
+                    examples:
+                      - https://storage.googleapis.com/bucket/export.tif
+          description: Success
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters:
+        - $ref: "#/components/parameters/session_id"
+      description: Get current status of export job for a session.
+      operationId: downloadStatus
   /api/v1/luma/predictor:
     post:
       tags:
