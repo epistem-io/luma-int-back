@@ -1,5 +1,7 @@
 import geopandas as gpd
 
+from flask import current_app
+
 from application import db
 from application.models.luma import LulcClass, TrainingData
 from application.utils.common import AppMessageException, ErrorCodeEnum
@@ -60,19 +62,23 @@ def process(known_session, input_data):
     } for n in records]
 
 def process_file(known_session, aoi, filepath):
+    current_app.logger.info('processing training data file: {}'.format(filepath))
     gdf = gpd.read_file(filepath)
 
     reference_set, reference_dict_id, reference_dict_name = get_current_class_scheme(known_session)
 
     target_field, confidence = find_lulc_column(gdf, reference_set)
-    print(f"Identified Column: {target_field} ({confidence:.1%} match rate)")
+    current_app.logger.info(f"Identified Column: {target_field} ({confidence:.1%} match rate)")
 
     if confidence < 1.0:
         raise AppMessageException('not all of the class is match with the reference class', error=ErrorCodeEnum.ERR_VALIDATION)
     
     reference_dict_type = 'id'
-    if reference_dict_name.get(gdf[target_field].iloc[0]):
-        reference_dict_type = 'name'
+    try:
+        if reference_dict_name.get(gdf[target_field].iloc[0].lower()):
+            reference_dict_type = 'name'
+    except:
+        pass
     
     print(reference_dict_name)
     print(reference_dict_id)
@@ -83,9 +89,9 @@ def process_file(known_session, aoi, filepath):
     records = [
         {
             'session_id': known_session.id,
-            'class_id': getattr(row, target_field) if reference_dict_type == 'id' else reference_dict_name[getattr(row, target_field)]['id'],
+            'class_id': getattr(row, target_field) if reference_dict_type == 'id' else reference_dict_name[getattr(row, target_field).lower()]['id'],
             'class_name': getattr(row, target_field) if reference_dict_type == 'name' else reference_dict_id[getattr(row, target_field)]['name'],
-            'class_color': reference_dict_name[getattr(row, target_field)]['color'] if reference_dict_type == 'name' else reference_dict_id[getattr(row, target_field)]['color'],
+            'class_color': reference_dict_name[getattr(row, target_field).lower()]['color'] if reference_dict_type == 'name' else reference_dict_id[getattr(row, target_field)]['color'],
             "geom": from_shape(row.geometry, srid=4326)
         }
         for row in gdf.itertuples()
@@ -118,7 +124,7 @@ def get_current_class_scheme(known_session):
             'name': cls.class_name,
             'color': cls.class_color
         }
-        reference_dict_name[cls.class_name] = {
+        reference_dict_name[cls.class_name.lower()] = {
             'id': cls.class_id,
             'name': cls.class_name,
             'color': cls.class_color

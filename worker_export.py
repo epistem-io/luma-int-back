@@ -106,7 +106,7 @@ def handle_message(message):
 
             start_date = luma.start_date.strftime('%Y-%m-%d')
             end_date = luma.end_date.strftime('%Y-%m-%d')
-            filename = '{session_id}_LULC_{sensor}_{start_date}_{end_date}_im'.format(
+            filename = '{session_id}_LULC_{sensor}_{start_date}_{end_date}'.format(
                 session_id=job.session_id,
                 sensor=luma.landsat_version,
                 start_date=start_date,
