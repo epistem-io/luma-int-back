@@ -15,8 +15,8 @@ app = create_app()
 app.app_context().push()
 
 from application.models.luma import ExportJob, Luma
-from application.models.user import Session
-from application.logic.luma.gcs_export import export_to_gcs
+from application.models.user import Session, Account
+from application.logic.luma.gcs_export import export_to_gcs, write_author_metadata
 from application.logic.luma import export_job as export_job_logic
 from application.logic.geos import aoi as aoi_logic
 
@@ -116,8 +116,12 @@ def handle_message(message):
             download_url = export_to_gcs(image, filename, aoi, luma.spatial_resolution, metadata=metadata)
 
             # re-fetch to pick up any email_requested flag set during export
-            job = ExportJob.query.get(job_id)
+            db.session.refresh(job)
+            # job = ExportJob.query.get(job_id)
             if job.email_requested and job.requester_email:
+                requester = Account.query.filter_by(email=job.requester_email).first()
+                if requester:
+                    write_author_metadata(filename, requester.fullname or job.requester_email)
                 export_job_logic.send_download_link(job.requester_email, download_url, job.session_id)
 
             export_job_logic.update_export_job(job_id, status='done', download_url=download_url)

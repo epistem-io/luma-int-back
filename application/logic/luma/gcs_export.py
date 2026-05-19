@@ -17,6 +17,30 @@ TEMP_DIR = os.environ.get(
 )
 
 
+def write_author_metadata(filename, author):
+    """Re-download GCS blob, update author tag, re-upload."""
+    client = storage.Client()
+    blob = client.bucket(GCS_BUCKET).blob(f'{GCS_PREFIX}/{filename}.tif')
+    blob.reload()
+    metadata = blob.metadata or {}
+    metadata['author'] = author
+
+    os.makedirs(TEMP_DIR, exist_ok=True)
+    tmp_path = os.path.join(TEMP_DIR, f'{uuid.uuid4().hex}.tif')
+    try:
+        blob.download_to_filename(tmp_path)
+        with rasterio.open(tmp_path, 'r+', IGNORE_COG_LAYOUT_BREAK='YES') as ds:
+            ds.update_tags(author=author)
+        blob.metadata = metadata
+        blob.upload_from_filename(tmp_path, content_type='image/tiff')
+        blob.patch()
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    
+    blob.make_public()
+
+
 def export_to_gcs(image, filename, aoi, scale, crs='EPSG:4326', metadata={}):
     """Export EE image to GCS and return a public download URL."""
     if not GCS_BUCKET:

@@ -18,6 +18,7 @@ import arrow
 from application.logic.geos import aoi as aoi_logic
 from application.logic.user import session as session_logic
 from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor, export_job as export_job_logic
+from application.logic.luma.gcs_export import write_author_metadata
 from application.logic.geos import gee_utils
 
 # utils
@@ -373,6 +374,11 @@ def download_request():
     session_id = data.get('session_id', '')
 
     known_session = session_logic.get_session(session_id, validate=True)
+
+    if not known_session.account_id:
+        known_session.account_id = current_user.id
+        db.session.commit()
+        
     job = export_job_logic.get_export_job(session_id)
     if not job or not job.ee_image_serialized:
         raise AppMessageException('no export job found, please run lulc-map first')
@@ -380,6 +386,17 @@ def download_request():
     user_email = current_user.email
 
     if job.status == 'done':
+        author = current_user.fullname or user_email
+        luma = luma_logic.get(known_session)
+        start_date = luma.start_date.strftime('%Y-%m-%d')
+        end_date = luma.end_date.strftime('%Y-%m-%d')
+        filename = '{session_id}_LULC_{sensor}_{start_date}_{end_date}'.format(
+            session_id=session_id,
+            sensor=luma.landsat_version,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        write_author_metadata(filename, author)
         export_job_logic.send_download_link(user_email, job.download_url, session_id)
         return make_response(jsonify(success_handler({'message': 'email sent', 'status': 'done'})), 200)
 
