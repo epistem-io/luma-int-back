@@ -127,3 +127,4 @@ xyzservices==2025.4.0
 luma_ge @ git+https://github.com/epistem-io/luma-stack.git
 openpyxl
 gevent==26.4.0
+google-cloud-pubsub

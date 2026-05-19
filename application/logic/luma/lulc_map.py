@@ -2,13 +2,15 @@ import ee
 import geopandas as gpd
 import geemap
 import json
+import os
 
 from flask import current_app
 
 from application import db
 from application.logic.geos.aoi import converter
-from application.logic.luma.gcs_export import export_to_gcs
+from application.logic.luma import export_job as export_job_logic
 from application.utils.common import AppMessageException, get_date
+from application.utils.pubsub import publish
 
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
 from luma_ge.classification import FeatureExtraction, Generate_LULC
@@ -53,7 +55,7 @@ processes = [
     { 'name': 'sample data quality', 'w': 5.0 },
     { 'name': 'feature importance', 'w': 2.0 },
     { 'name': 'evaluate model quality', 'w': 10.0 },
-    { 'name': 'get download url', 'w': 2.5 },
+    { 'name': 'process export', 'w': 2.5 },
     { 'name': 'end', 'w': 0.1 },
 ]
 total_w = sum([p['w'] for p in processes])
@@ -414,54 +416,18 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     yield forge_process(step, { 'model_quality': model_quality_payload })
     #endregion
 
-    #region export image
-    download_url = ''
-
-    if not classification_result or classification_result is None:
-        classification_result = reclassified_map
-    
-    # classification_result = reclassified_map
-    
-    author = known_session.account.fullname if known_session.account_id else '-'
+    #region queue export job
     try:
-        counts = train_gdf.groupby(['class_id', 'class_name']).size().sort_index()
-        classes = ", ".join(f"{name} ({n})" for (_, name), n in counts.items())
-        if use_predictor:
-            predictor_input = []
-            individual_predictors = predictor_config.get('individual_predictors', {})
-            if individual_predictors.get('elevation'):
-                predictor_input.append('Elevation')
-            if individual_predictors.get('slope'):
-                predictor_input.append('Slope')
-            if individual_predictors.get('aspect'):
-                predictor_input.append('Aspect')
-            if individual_predictors.get('spectral_indices'):
-                predictor_input += individual_predictors.get('spectral_indices')
-            predictor_input = ', '.join(predictor_input)
-        else:
-            predictor_input = 'Not Used'
-        
-        user_input = 'Spatial resolution: {spatial_resolution}m x {spatial_resolution}m; Satellite imagery date range: {start_date} - {end_date}; Satellite imagery source: {optical_data}; Maximum cloudy area: {cloud_cover}%; Classes and data sample: {classes}; Predictor: {predictor}; Number of trees: {ntrees}; Minimum leaf population: {min_leaf}'.format(
-            spatial_resolution=spatial_resolution,
-            start_date=start_date,
-            end_date=end_date,
-            optical_data=optical_data,
-            cloud_cover=cloud_cover,
-            classes=classes,
-            predictor=predictor_input,
-            ntrees=ntrees,
-            min_leaf=min_leaf
-        )
+        export_image = classification_result
+        if not export_image or export_image is None:
+            export_image = reclassified_map
+        if export_image is not None:
+            serialized = ee.serializer.encode(export_image.toInt())
+            job = export_job_logic.save_export_job(session_id, serialized)
+            publish(os.environ.get('PUBSUB_TOPIC_EXPORT', 'luma-export-jobs'), job.id)
     except Exception as e:
-        _log_step_failure('get download url user input', e)
-        user_input = '-'
-
-    try:
-        if classification_result is not None:
-            export_image = classification_result.toInt()
-            download_url = export_to_gcs(export_image, '{session_id}_LULC_{sensor}_{start_date}_{end_date}_im'.format(sensor=optical_data, start_date=start_date, end_date=end_date, session_id=session_id), aoi, spatial_resolution, metadata={ 'author': author, 'user_input': user_input })
-    except Exception as e:
-        _log_step_failure('get download url', e)
-    step = step + 1
-    yield forge_process(step, { 'download_url': download_url })
+        _log_step_failure('queue export job', e)
     #endregion
+
+    step = step + 1
+    yield forge_process(step, { 'download_url': '' })

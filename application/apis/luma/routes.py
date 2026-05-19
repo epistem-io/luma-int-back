@@ -17,7 +17,7 @@ import arrow
 # logic
 from application.logic.geos import aoi as aoi_logic
 from application.logic.user import session as session_logic
-from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor
+from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor, export_job as export_job_logic
 from application.logic.geos import gee_utils
 
 # utils
@@ -355,3 +355,53 @@ def generate_lulc_map():
     # }
 
     return Response(stream_with_context(lulc_map.generate(known_session, known_aoi, aoi, luma, classes)), mimetype='application/x-ndjson')
+
+
+@luma_apis_blueprint.route('/download-request', methods=['POST'])
+@cross_origin()
+def download_request():
+    g_var.__api_name__ = 'download_request'
+    g_var.__api_description__ = 'download_request'
+
+    if not current_user.is_authenticated:
+        raise AppMessageException('unauthorized', error=ErrorCodeEnum.ERR_NOAUTH)
+
+    if not request.is_json:
+        raise AppMessageException('invalid input: request must be json', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    data = request.get_json()
+    session_id = data.get('session_id', '')
+
+    known_session = session_logic.get_session(session_id, validate=True)
+    job = export_job_logic.get_export_job(session_id)
+    if not job or not job.ee_image_serialized:
+        raise AppMessageException('no export job found, please run lulc-map first')
+
+    user_email = current_user.email
+
+    if job.status == 'done':
+        export_job_logic.send_download_link(user_email, job.download_url, session_id)
+        return make_response(jsonify(success_handler({'message': 'email sent', 'status': 'done'})), 200)
+
+    export_job_logic.request_email(job.id, user_email)
+    return make_response(jsonify(success_handler({'message': 'email will be sent when export completes', 'status': job.status})), 202)
+
+
+@luma_apis_blueprint.route('/download-status', methods=['GET'])
+@cross_origin()
+def download_status():
+    g_var.__api_name__ = 'download_status'
+    g_var.__api_description__ = 'download_status'
+
+    session_id = request.args.get('session_id', '')
+    known_session = session_logic.get_session(session_id, validate=True)
+
+    job = export_job_logic.get_export_job(session_id)
+    if not job:
+        raise AppMessageException('no export job found')
+
+    return make_response(jsonify(success_handler({
+        'job_id': job.id,
+        'status': job.status,
+        'download_url': job.download_url,
+    })), 200)

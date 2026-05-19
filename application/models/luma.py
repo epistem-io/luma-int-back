@@ -156,5 +156,23 @@ class TrainingData(db.Model):
                 }
                 for row in dt
             ]
-        
+
         return dt
+
+
+class ExportJob(db.Model):
+    __tablename__ = 'luma_export_job'
+    id = db.Column(db.String(36), primary_key=True, default=get_uuid)
+
+    session_id = db.Column(db.String(36), db.ForeignKey('user_session.id'), index=True, nullable=False)
+    session = db.relationship('Session', backref='luma_export_job')
+
+    status = db.Column(db.String(20), default='ready')  # ready | pending | done | failed
+    download_url = db.Column(db.Text, nullable=True)
+    ee_image_serialized = db.Column(JSONB, nullable=True)
+    email_requested = db.Column(db.Boolean, default=False)
+    requester_email = db.Column(db.String(255), nullable=True)
+    error_message = db.Column(db.Text, nullable=True)
+
+    created_date = db.Column(db.DateTime, default=get_date)
+    modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)
