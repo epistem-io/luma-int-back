@@ -1,7 +1,7 @@
 import os
 import time
 import uuid
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 
 import ee
 import rasterio
@@ -22,13 +22,11 @@ def export_to_gcs(image, filename, aoi, scale, crs='EPSG:4326', metadata={}):
     if not GCS_BUCKET:
         raise Exception('GCS_BUCKET_NAME env var not set')
 
-    now = datetime.now(UTC).replace(tzinfo=None)
-    metadata = {
-        'Author': 'LUMA',
-        'Date': now.strftime('%Y-%m-%d %H:%M:%S'),
-        'Generated using': 'Luma Geospatial Engine version v0.1.0',
-        'User input': 'LUMA via Earth Engine',
-    }
+    now = datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=7)
+    metadata.update({
+        'date': '{} WIB'.format(now.strftime('%Y-%m-%d %H:%M:%S')),
+        'generated_using': 'Luma Geospatial Engine version v0.1.0',
+    })
     image = image.set(metadata)
 
     task = ee.batch.Export.image.toCloudStorage(
@@ -40,7 +38,7 @@ def export_to_gcs(image, filename, aoi, scale, crs='EPSG:4326', metadata={}):
         scale=scale,
         crs=crs,
         fileFormat='GeoTIFF',
-        formatOptions={'cloudOptimized': True}
+        formatOptions={'cloudOptimized': True, 'noData': 0}
     )
     task.start()
 

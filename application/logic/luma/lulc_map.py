@@ -69,6 +69,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     thermal_data = optical_data.replace('_SR', '_TOA')
     start_date = luma.start_date.strftime('%Y-%m-%d')
     end_date = luma.end_date.strftime('%Y-%m-%d')
+    cloud_cover = luma.cloud_cover
     predictor_config = luma.predictor_config
     spatial_resolution = luma.spatial_resolution
     ntrees = luma.ntrees
@@ -84,6 +85,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     train_data_split = None
     testing_data_split = None
     classification_result = None
+    reclassified_map = None
     trained_model = None
     layers = []
     lulc_composition = []
@@ -295,6 +297,8 @@ def generate(known_session, known_aoi, aoi, luma, classes):
             prebuilt_vis = prebuilt['vis_params']
             prebuilt_vis['bands'] = ['remapped']
             Map.addLayer(reclassified_map, prebuilt_vis, 'Prebuilt LULC ({} {})'.format(prebuilt['scheme'], prebuilt['year_used']))
+            if not classification_result or classification_result is None:
+                classification_result = reclassified_map
         except Exception as e:
             _log_step_failure('visualization prebuilt clip layer', e)
 
@@ -412,28 +416,50 @@ def generate(known_session, known_aoi, aoi, luma, classes):
 
     #region export image
     download_url = ''
+
+    if not classification_result or classification_result is None:
+        classification_result = reclassified_map
+    
+    # classification_result = reclassified_map
+    
+    author = known_session.account.fullname if known_session.account_id else '-'
+    try:
+        counts = train_gdf.groupby(['class_id', 'class_name']).size().sort_index()
+        classes = ", ".join(f"{name} ({n})" for (_, name), n in counts.items())
+        if use_predictor:
+            predictor_input = []
+            individual_predictors = predictor_config.get('individual_predictors', {})
+            if individual_predictors.get('elevation'):
+                predictor_input.append('Elevation')
+            if individual_predictors.get('slope'):
+                predictor_input.append('Slope')
+            if individual_predictors.get('aspect'):
+                predictor_input.append('Aspect')
+            if individual_predictors.get('spectral_indices'):
+                predictor_input += individual_predictors.get('spectral_indices')
+            predictor_input = ', '.join(predictor_input)
+        else:
+            predictor_input = 'Not Used'
+        
+        user_input = 'Spatial resolution: {spatial_resolution}m x {spatial_resolution}m; Satellite imagery date range: {start_date} - {end_date}; Satellite imagery source: {optical_data}; Maximum cloudy area: {cloud_cover}%; Classes and data sample: {classes}; Predictor: {predictor}; Number of trees: {ntrees}; Minimum leaf population: {min_leaf}'.format(
+            spatial_resolution=spatial_resolution,
+            start_date=start_date,
+            end_date=end_date,
+            optical_data=optical_data,
+            cloud_cover=cloud_cover,
+            classes=classes,
+            predictor=predictor_input,
+            ntrees=ntrees,
+            min_leaf=min_leaf
+        )
+    except Exception as e:
+        _log_step_failure('get download url user input', e)
+        user_input = '-'
+
     try:
         if classification_result is not None:
-            generation_datetime = get_date().strftime('%Y-%m-%d %H:%M:%S')
-            export_image = classification_result.toInt().set({
-                'generated_by': 'LUMA',
-                'generation_datetime': generation_datetime,
-                'sensor': optical_data,
-                'start_date': start_date,
-                'end_date': end_date,
-            })
-            # try:
-            #     results['download_url'] = export_to_gcs(composite, '{session_id}_LULC_{sensor}_{start_date}_{end_date}_im'.format(sensor=optical_data, start_date=start_date, end_date=end_date, session_id=session_id), aoi, spatial_resolution)
-            # except Exception as e:
-            #     current_app.logger.error('failed to export to gcs: {}'.format(str(e)))
-            download_url = export_image.getDownloadURL({
-                'name': 'LULC_{sensor}_{start_date}_{end_date}_{session_id}'.format(sensor=optical_data, start_date=start_date, end_date=end_date, session_id=session_id),
-                'crs': 'EPSG:4326',
-                'scale': scale,
-                'region': aoi,
-                'fileFormat': 'GEO_TIFF',
-                'formatOptions': {'cloudOptimized': True, 'noData': 0}
-            })
+            export_image = classification_result.toInt()
+            download_url = export_to_gcs(export_image, '{session_id}_LULC_{sensor}_{start_date}_{end_date}_im'.format(sensor=optical_data, start_date=start_date, end_date=end_date, session_id=session_id), aoi, spatial_resolution, metadata={ 'author': author, 'user_input': user_input })
     except Exception as e:
         _log_step_failure('get download url', e)
     step = step + 1
