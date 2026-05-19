@@ -47,11 +47,6 @@ def generate_image_mosaic():
     if not end_date:
         raise AppMessageException('please input: end date, format: yyyy-mm-dd', error=ErrorCodeEnum.ERR_VALIDATION)
     
-    # if not landsat_version:
-    #     raise AppMessageException('please input: landsat version')
-    # if not cloud_cover:
-    #     raise AppMessageException('please input: cloud cover, format: positive number, max 50')
-    
     try:
         start_date = arrow.get(start_date).format('YYYY-MM-DD')
     except Exception as e:
@@ -66,9 +61,7 @@ def generate_image_mosaic():
         try:
             cloud_cover = int(cloud_cover)
         except Exception as e:
-            raise AppMessageException('invalid input: cloud cover, format: positive number, max 50', error=ErrorCodeEnum.ERR_VALIDATION)
-        if cloud_cover < 0 or cloud_cover > 50:
-            raise AppMessageException('invalid input: cloud cover, format: positive number, max 50', error=ErrorCodeEnum.ERR_VALIDATION)
+            raise AppMessageException('invalid input: cloud cover, format: positive number', error=ErrorCodeEnum.ERR_VALIDATION)
     
     if spatial_resolution:
         try:
@@ -86,7 +79,7 @@ def generate_image_mosaic():
 
     # test.test_load_training_data(aoi)
 
-    mosaic_results = image_mosaic.generate(aoi, start_date, end_date, landsat_version, cloud_cover, spatial_resolution)
+    mosaic_results = image_mosaic.generate(session_id, aoi, start_date, end_date, landsat_version, cloud_cover, spatial_resolution)
     luma_logic.save_param(known_session, start_date, end_date, landsat_version, cloud_cover, spatial_resolution)
 
     results = {

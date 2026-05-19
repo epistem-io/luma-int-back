@@ -33,6 +33,8 @@ def process(known_session, classes, file, extension):
             raise AppMessageException('Failed to read the file. Please ensure the file format is valid, all required columns are present, and the file contains data', error=ErrorCodeEnum.ERR_VALIDATION)
 
         df.columns = ['id', 'class']
+        df = df.dropna(subset=['id', 'class'])
+        df = df[df['id'].astype(str).str.strip().ne('') & df['class'].astype(str).str.strip().ne('')]
         classes = df.to_dict('records')
         for i, cls in enumerate(classes):
             cls['color'] = DEFAULT_CLASS_COLORS[i % len(DEFAULT_CLASS_COLORS)]

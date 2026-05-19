@@ -1,4 +1,5 @@
 # run.py
+from gevent import monkey; monkey.patch_all()
 from application import create_app, db
 from application import models
 from flask_migrate import Migrate

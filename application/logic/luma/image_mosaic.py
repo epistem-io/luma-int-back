@@ -8,6 +8,7 @@ from flask import current_app
 from application.utils.common import get_date
 
 def generate(
+    session_id: str,
     aoi:ee.Geometry,
     start_date:str,
     end_date:str,
@@ -97,15 +98,6 @@ def generate(
         }
     }
 
-    generation_datetime = get_date().strftime('%Y-%m-%d %H:%M:%S')
-    composite = composite.set({
-        'generated_by': 'LUMA',
-        'generation_datetime': generation_datetime,
-        'sensor': optical_data,
-        'start_date': start_date,
-        'end_date': end_date,
-    })
-
     Map = geemap.Map()
     Map.centerObject(aoi, 8)
     Map.addLayer(aoi, {'color': 'red', 'fillColor': '00000000'}, 'Area of Interest (AOI)')
@@ -129,7 +121,7 @@ def generate(
         'statistics': {},
         'metadata': {
             'generated_by': 'LUMA',
-            'generation_datetime': generation_datetime,
+            'generation_datetime': get_date().strftime('%Y-%m-%d %H:%M:%S'),
             'sensor': optical_data,
             'start_date': start_date,
             'end_date': end_date,
@@ -158,11 +150,11 @@ def generate(
     
     # region export
     results['download_url'] = ''
+    band_names = composite.bandNames()
+    composite = composite.select(band_names)
     try:
-        band_names = composite.bandNames()
-        composite = composite.select(band_names)
         results['download_url'] = composite.getDownloadURL({
-            "name": 'LULC_{sensor}_{start_date}_{end_date}'.format(sensor=optical_data, start_date=start_date, end_date=end_date),
+            "name": 'LULC_{sensor}_{start_date}_{end_date}_{session_id}_IM'.format(sensor=optical_data, start_date=start_date, end_date=end_date, session_id=session_id),
             "crs": 'EPSG:4326', # default
             "scale": spatial_resolution, # default
             "region": aoi,

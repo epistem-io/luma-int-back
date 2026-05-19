@@ -7,6 +7,7 @@ from flask import current_app
 
 from application import db
 from application.logic.geos.aoi import converter
+from application.logic.luma.gcs_export import export_to_gcs
 from application.utils.common import AppMessageException, get_date
 
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
@@ -63,6 +64,7 @@ def _log_step_failure(stage, e):
 def generate(known_session, known_aoi, aoi, luma, classes):
     step = 0
 
+    session_id = known_session.id
     optical_data = luma.landsat_version
     thermal_data = optical_data.replace('_SR', '_TOA')
     start_date = luma.start_date.strftime('%Y-%m-%d')
@@ -110,7 +112,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
             ),
             db.engine,
             geom_col='geometry',
-            params={'session_id': known_session.id}
+            params={'session_id': session_id}
         )
     except Exception as e:
         _log_step_failure('get training data', e)
@@ -420,8 +422,12 @@ def generate(known_session, known_aoi, aoi, luma, classes):
                 'start_date': start_date,
                 'end_date': end_date,
             })
+            # try:
+            #     results['download_url'] = export_to_gcs(composite, '{session_id}_LULC_{sensor}_{start_date}_{end_date}_im'.format(sensor=optical_data, start_date=start_date, end_date=end_date, session_id=session_id), aoi, spatial_resolution)
+            # except Exception as e:
+            #     current_app.logger.error('failed to export to gcs: {}'.format(str(e)))
             download_url = export_image.getDownloadURL({
-                'name': 'LULC_{sensor}_{start_date}_{end_date}'.format(sensor=optical_data, start_date=start_date, end_date=end_date),
+                'name': 'LULC_{sensor}_{start_date}_{end_date}_{session_id}'.format(sensor=optical_data, start_date=start_date, end_date=end_date, session_id=session_id),
                 'crs': 'EPSG:4326',
                 'scale': scale,
                 'region': aoi,

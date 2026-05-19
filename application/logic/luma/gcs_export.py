@@ -1,31 +1,41 @@
 import os
 import time
-from datetime import datetime
+import uuid
+from datetime import datetime, UTC
 
 import ee
+import rasterio
 from google.cloud import storage
 
-GCS_BUCKET = os.environ.get('GCS_BUCKET_NAME', '')
+GCS_BUCKET = os.environ.get('GCS_BUCKET_NAME', 'epistem-luma')
+GCS_PREFIX = os.environ.get('GCS_BUCKET_PREFIX', 'dev')
 POLL_INTERVAL = 15
 EXPORT_TIMEOUT = 3600
+TEMP_DIR = os.environ.get(
+    'TEMP_DIR',
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'temp_folder')
+)
 
 
-def export_to_gcs(image, filename, aoi, scale, crs='EPSG:4326'):
+def export_to_gcs(image, filename, aoi, scale, crs='EPSG:4326', metadata={}):
     """Export EE image to GCS and return a public download URL."""
     if not GCS_BUCKET:
         raise Exception('GCS_BUCKET_NAME env var not set')
 
-    now = datetime.now()
-    image = image.set({
-        'generated_by': 'LUMA',
-        'generation_datetime': now.strftime('%Y-%m-%d %H:%M:%S'),
-    })
+    now = datetime.now(UTC).replace(tzinfo=None)
+    metadata = {
+        'Author': 'LUMA',
+        'Date': now.strftime('%Y-%m-%d %H:%M:%S'),
+        'Generated using': 'Luma Geospatial Engine version v0.1.0',
+        'User input': 'LUMA via Earth Engine',
+    }
+    image = image.set(metadata)
 
     task = ee.batch.Export.image.toCloudStorage(
         image=image,
         description=filename[:100],
         bucket=GCS_BUCKET,
-        fileNamePrefix=filename,
+        fileNamePrefix=f'{GCS_PREFIX}/{filename}',
         region=aoi,
         scale=scale,
         crs=crs,
@@ -45,6 +55,20 @@ def export_to_gcs(image, filename, aoi, scale, crs='EPSG:4326'):
             status['state'], status.get('error_message', '')))
 
     client = storage.Client()
-    blob = client.bucket(GCS_BUCKET).blob('{}.tif'.format(filename))
+    blob = client.bucket(GCS_BUCKET).blob(f'{GCS_PREFIX}/{filename}.tif')
+    blob.metadata = metadata
+    blob.patch()
+
+    os.makedirs(TEMP_DIR, exist_ok=True)
+    tmp_path = os.path.join(TEMP_DIR, f'{uuid.uuid4().hex}.tif')
+    try:
+        blob.download_to_filename(tmp_path)
+        with rasterio.open(tmp_path, 'r+', IGNORE_COG_LAYOUT_BREAK='YES') as ds:
+            ds.update_tags(**metadata)
+        blob.upload_from_filename(tmp_path, content_type='image/tiff')
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
     blob.make_public()
     return blob.public_url
