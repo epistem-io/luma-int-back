@@ -4,6 +4,8 @@ import geemap
 import json
 import os
 
+import numpy as np
+
 from flask import current_app
 
 from application import db
@@ -20,8 +22,18 @@ from luma_ge.predictor import PredictorCalculation
 
 PREBUILT_SCHEME = 'RESTORE+ Project'
 
+class _NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
 def pack(data):
-    return json.dumps(data) + "\n"
+    return json.dumps(data, cls=_NumpyEncoder) + "\n"
 
 def forge_process(step, data):
     data = {
