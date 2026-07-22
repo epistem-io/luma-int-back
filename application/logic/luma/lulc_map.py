@@ -17,7 +17,6 @@ from application.utils.pubsub import publish
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
 from luma_ge.classification import FeatureExtraction, Generate_LULC
 from luma_ge.classification_scheme import LULC_Scheme_Manager
-from luma_ge.sample_data_quality import sample_quality, spectral_plotter
 from luma_ge.predictor import PredictorCalculation
 
 PREBUILT_SCHEME = 'RESTORE+ Project'
@@ -64,7 +63,6 @@ processes = [
     { 'name': 'model training & classification', 'w': 0.1 },
     { 'name': 'visualization', 'w': 3.0 },
     { 'name': 'calculate lulc composition', 'w': 1.0 },
-    { 'name': 'sample data quality', 'w': 5.0 },
     { 'name': 'feature importance', 'w': 2.0 },
     { 'name': 'evaluate model quality', 'w': 10.0 },
     { 'name': 'process export', 'w': 2.5 },
@@ -104,7 +102,6 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     layers = []
     lulc_composition = []
     class_property = 'class_id'
-    class_name_property = 'class_name'
     pixel_size = spatial_resolution
     split_ratio = 0.7
     scale = spatial_resolution
@@ -353,35 +350,6 @@ def generate(known_session, known_aoi, aoi, luma, classes):
         _log_step_failure('lulc composition', e)
     step = step + 1
     yield forge_process(step, { 'lulc_composition': lulc_composition })
-    #endregion
-
-    #region sample data quality
-    lowest_separability = { 'min_td': 0, 'result_dict': [] }
-    try:
-        if roi_ee is not None and image is not None:
-            analyzer = sample_quality(
-                training_data=roi_ee,
-                image=image,
-                class_property=class_property,
-                region=aoi,
-                class_name_property=class_name_property,
-            )
-            analyzer.get_sample_stats_df()
-            pixel_extract = analyzer.extract_spectral_values(scale=scale, max_pixels_per_class=5000)
-            analyzer.get_sample_pixel_stats_df(pixel_extract)
-            analyzer.get_separability_df(pixel_extract, method='TD')
-            lowest_sep = analyzer.lowest_separability(pixel_extract, method='TD')
-            min_td = lowest_sep['TD_Distance'].min()
-            lowest_sep_sorted = lowest_sep.sort_values(by='TD_Distance')
-            lowest_sep_filtered = lowest_sep_sorted # lowest_sep_sorted[lowest_sep_sorted['TD_Distance'] < 1.8]
-            lowest_separability = {
-                'min_td': min_td,
-                'result_dict': lowest_sep_filtered.to_dict(orient='records')
-            }
-    except Exception as e:
-        _log_step_failure('sample data quality', e)
-    step = step + 1
-    yield forge_process(step, { 'lowest_separability': lowest_separability })
     #endregion
 
     #region feature importance
