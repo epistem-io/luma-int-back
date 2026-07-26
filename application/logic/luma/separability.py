@@ -3,20 +3,11 @@ import geopandas as gpd
 from application import db
 from application.logic.geos.aoi import converter
 from application.logic.luma.composite import build_composite
+from application.logic.luma.separability_summary import build_summary
 
 from luma_ge.sample_data_quality import sample_quality
 
 MAX_PIXELS_PER_CLASS = 5000
-
-GOOD_TD = 1.8
-WEAK_TD = 1.0
-
-def _overall_label(mean_td):
-    if mean_td >= GOOD_TD:
-        return 'good'
-    if mean_td >= WEAK_TD:
-        return 'med'
-    return 'poor'
 
 def analyze(known_session, aoi, luma):
     session_id = known_session.id
@@ -66,42 +57,18 @@ def analyze(known_session, aoi, luma):
         scale=luma.spatial_resolution,
         max_pixels_per_class=MAX_PIXELS_PER_CLASS
     )
-    sep_df =analyzer.get_separability_df(pixel_extract, method='TD')
-    if sep_df.empty:
-        return None
-    
-    mean_td = float(sep_df['TD_Distance'].mean())
-    
-    good_pairs = int((sep_df['TD_Distance'] >= GOOD_TD).sum())
-    weak_pairs = int(((sep_df['TD_Distance'] >= WEAK_TD) & (sep_df['TD_Distance'] < GOOD_TD)).sum())
-    poor_pairs = int((sep_df['TD_Distance'] < WEAK_TD).sum())
-    
-    problem_df = sep_df[sep_df['TD_Distance'] < GOOD_TD]
-    
-    all_class_ids = set(sep_df['Class1_ID']).union(sep_df['Class2_ID'])
-    problem_class_ids = set(problem_df['Class1_ID']).union(problem_df['Class2_ID'])
-    
-    problem_pairs = []
-    for _, row in problem_df.iterrows():
-        problem_pairs.append({
-            'Class1_ID': str(row['Class1_ID']),
-            'Class1_Name': str(row['Class1_Name']),
-            'Class2_ID': str(row['Class2_ID']),
-            'Class2_Name': str(row['Class2_Name']),
-            'TD_Distance': float(row['TD_Distance']),
-            'Separability_Level': str(row['Separability_Level'])
-        })
-        
-    return {
-        'mean_td': round(mean_td, 2),
-        'overall': _overall_label(mean_td),
-        'pair_counts': {
-            'good': good_pairs,
-            'weak': weak_pairs,
-            'poor': poor_pairs,
-            'total': int(len(sep_df))
-        },
-        'classes_good': len(all_class_ids) - len(problem_class_ids),
-        'classes_total': len(all_class_ids),
-        'problem_pairs': problem_pairs
-    }
+    sep_df = analyzer.get_separability_df(pixel_extract, method='TD')
+
+    uploaded_classes = [
+        {'class_id': int(row.class_id), 'class_name': str(row.class_name)}
+        for row in train_gdf[['class_id', 'class_name']].drop_duplicates().itertuples(index=False)
+    ]
+
+    pixel_counts = {}
+    if not pixel_extract.empty and 'class_id' in pixel_extract.columns:
+        pixel_counts = {
+            int(class_id): int(count)
+            for class_id, count in pixel_extract.groupby('class_id').size().items()
+        }
+
+    return build_summary(uploaded_classes, pixel_counts, sep_df)

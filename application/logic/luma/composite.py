@@ -4,8 +4,8 @@ from flask import current_app
 
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
 
-def build_composite(aoi, start_date, end_date, landsat_version='L8_SR', cloud_cover=30):
-    
+def build_composite(aoi, start_date, end_date, landsat_version='L8_SR', cloud_cover=30, return_collection=False):
+
     optical_data = landsat_version
     
     reflectance = Reflectance_Data()
@@ -42,11 +42,11 @@ def build_composite(aoi, start_date, end_date, landsat_version='L8_SR', cloud_co
             except Exception:
                 total_images = 0
         if total_images <= 0:
-            return None
+            return (None, None) if return_collection else None
     except Exception as e:
         current_app.logger.error('build_composite: image count check failed: {}'.format(e))
-        return None
-    
+        return (None, None) if return_collection else None
+
     image_processor = final_Image()
     if thermal_collection is not None:
         thermal_median = thermal_collection.median().clip(aoi)
@@ -54,5 +54,7 @@ def build_composite(aoi, start_date, end_date, landsat_version='L8_SR', cloud_co
         composite = composite.addBands(thermal_median).toFloat()
     else:
         composite = image_processor.get_temporal_composite(collection, aoi, reducer='median', verbose=False).toFloat()
-        
+
+    if return_collection:
+        return composite, collection
     return composite

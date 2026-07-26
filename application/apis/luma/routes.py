@@ -17,7 +17,7 @@ import arrow
 # logic
 from application.logic.geos import aoi as aoi_logic
 from application.logic.user import session as session_logic
-from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor, separability, export_job as export_job_logic
+from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor, separability, thematic, export_job as export_job_logic
 from application.logic.luma.gcs_export import write_author_metadata
 from application.logic.geos import gee_utils
 
@@ -245,6 +245,43 @@ def training_data_delete():
     
     results = {
         'message': 'success',
+    }
+
+    return make_response(jsonify(success_handler(results)), 200)
+
+
+@luma_apis_blueprint.route('/thematic-accuracy', methods=['POST'])
+@cross_origin()
+def thematic_accuracy_assessment():
+    g_var.__api_name__ = 'thematic_accuracy_assessment'
+    g_var.__api_description__ = 'thematic_accuracy_assessment'
+
+    data = request.form
+
+    session_id = data.get('session_id', '')
+    file = request.files.get('file')
+
+    check_file(file, {'zip'})
+    known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
+
+    # Same clean-slate rules as training-data upload: never let a stale
+    # extracted .shp from a previous attempt leak into this one.
+    remove_tree_file(upload_folder, known_session.id)
+
+    filepath = save_uploaded_file(session_id, file, skip_gcs=True)
+    try:
+        filepath = process_zip(filepath, session_id, get_extension='shp', skip_gcs=True)
+
+        validation_gdf = thematic.parse_validation_file(known_session, filepath)
+        assessment = thematic.assess(known_session, aoi, luma, validation_gdf)
+    finally:
+        remove_tree_file(upload_folder, known_session.id)
+
+    results = {
+        'message': 'success',
+        'thematic_accuracy': assessment,
     }
 
     return make_response(jsonify(success_handler(results)), 200)
