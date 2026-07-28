@@ -17,7 +17,7 @@ import arrow
 # logic
 from application.logic.geos import aoi as aoi_logic
 from application.logic.user import session as session_logic
-from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor, export_job as export_job_logic
+from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor, separability, thematic, export_job as export_job_logic
 from application.logic.luma.gcs_export import write_author_metadata
 from application.logic.geos import gee_utils
 
@@ -209,14 +209,21 @@ def training_data_upload():
     known_session = session_logic.get_session(session_id, validate=True)
     luma = luma_logic.get(known_session, validate=True)
 
-    filepath = save_uploaded_file(session_id, file, skip_gcs=True)
-    filepath = process_zip(filepath, session_id, get_extension='shp', skip_gcs=True)
-
-    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
-    dt = training_data.process_file(known_session, aoi, filepath)
-    
+    # Start from a clean slate too: leftovers from a crash (or from before the
+    # cleanup below existed) must not be picked up by the extension scan.
     remove_tree_file(upload_folder, known_session.id)
-    
+
+    filepath = save_uploaded_file(session_id, file, skip_gcs=True)
+    try:
+        filepath = process_zip(filepath, session_id, get_extension='shp', skip_gcs=True)
+
+        known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
+        dt = training_data.process_file(known_session, aoi, filepath)
+    finally:
+        # Always clean the session upload folder: a failed upload must not
+        # leave a stale extracted .shp behind for the next attempt to pick up.
+        remove_tree_file(upload_folder, known_session.id)
+
     results = {
         'message': 'success',
         'training_data': dt
@@ -238,6 +245,43 @@ def training_data_delete():
     
     results = {
         'message': 'success',
+    }
+
+    return make_response(jsonify(success_handler(results)), 200)
+
+
+@luma_apis_blueprint.route('/thematic-accuracy', methods=['POST'])
+@cross_origin()
+def thematic_accuracy_assessment():
+    g_var.__api_name__ = 'thematic_accuracy_assessment'
+    g_var.__api_description__ = 'thematic_accuracy_assessment'
+
+    data = request.form
+
+    session_id = data.get('session_id', '')
+    file = request.files.get('file')
+
+    check_file(file, {'zip'})
+    known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
+
+    # Same clean-slate rules as training-data upload: never let a stale
+    # extracted .shp from a previous attempt leak into this one.
+    remove_tree_file(upload_folder, known_session.id)
+
+    filepath = save_uploaded_file(session_id, file, skip_gcs=True)
+    try:
+        filepath = process_zip(filepath, session_id, get_extension='shp', skip_gcs=True)
+
+        validation_gdf = thematic.parse_validation_file(known_session, filepath)
+        assessment = thematic.assess(known_session, aoi, luma, validation_gdf)
+    finally:
+        remove_tree_file(upload_folder, known_session.id)
+
+    results = {
+        'message': 'success',
+        'thematic_accuracy': assessment,
     }
 
     return make_response(jsonify(success_handler(results)), 200)
@@ -422,3 +466,24 @@ def download_status():
         'status': job.status,
         'download_url': job.download_url,
     })), 200)
+    
+@luma_apis_blueprint.route('/training-data/separability', methods=['GET'])
+@cross_origin()
+def training_data_separability():
+    g_var.__api_name__ = 'training_data_separability'
+    g_var.__api_description__ = 'training_data_separability'
+    
+    session_id = request.args.get('session_id', '')
+    
+    known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
+    
+    sample_quality_result = separability.analyze(known_session, aoi, luma)
+    
+    results = {
+        'message': 'success',
+        'sample_quality': sample_quality_result,
+    }
+    
+    return make_response(jsonify(success_handler(results)), 200)
