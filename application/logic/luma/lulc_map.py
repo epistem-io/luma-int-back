@@ -384,11 +384,36 @@ def generate(known_session, known_aoi, aoi, luma, classes):
             )
             f1s = model_quality.get('f1_scores', []) or []
             avg_f1 = sum(f1s) / len(f1s) if f1s else 0
+
+            # Per-class detail for the frontend's accuracy-detail view. The
+            # errorMatrix arrays are indexed by class id (0..max id), so join
+            # each index with the session's class scheme where it exists.
+            recalls = model_quality.get('recall', []) or []
+            precisions = model_quality.get('precision', []) or []
+            gmeans = model_quality.get('gmean_per_class', []) or []
+            class_lookup = {c.class_id: c for c in (classes or [])}
+            per_class = []
+            for i in range(len(recalls)):
+                known_class = class_lookup.get(i)
+                per_class.append({
+                    'class_id': i,
+                    'class_name': known_class.class_name if known_class else None,
+                    'class_color': known_class.class_color if known_class else None,
+                    'recall': recalls[i],
+                    'precision': precisions[i] if i < len(precisions) else 0,
+                    'f1_score': f1s[i] if i < len(f1s) else 0,
+                    'gmean_score': gmeans[i] if i < len(gmeans) else 0,
+                })
+
             model_quality_payload = {
                 'overall_accuracy': model_quality.get('overall_accuracy', 0) * 100,
                 'kappa': model_quality.get('kappa', 0),
                 'average_f1_score': avg_f1,
-                'gmean_score': model_quality.get('overall_gmean', 0)
+                'gmean_score': model_quality.get('overall_gmean', 0),
+                'per_class': per_class,
+                'confusion_matrix': model_quality.get('confusion_matrix', []),
+                'actual_class_ids': model_quality.get('actual_class_ids', []),
+                'predicted_class_ids': model_quality.get('predicted_class_ids', []),
             }
     except Exception as e:
         _log_step_failure('evaluate model quality', e)
