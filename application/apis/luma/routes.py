@@ -448,6 +448,52 @@ def download_request():
     return make_response(jsonify(success_handler({'message': 'email will be sent when export completes', 'status': job.status})), 202)
 
 
+@luma_apis_blueprint.route('/share-map', methods=['POST'])
+@cross_origin()
+def share_map():
+    g_var.__api_name__ = 'share_map'
+    g_var.__api_description__ = 'email the generated map result to a recipient'
+
+    if not current_user.is_authenticated:
+        raise AppMessageException('unauthorized', error=ErrorCodeEnum.ERR_NOAUTH)
+
+    if not request.is_json:
+        raise AppMessageException('invalid input: request must be json', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    data = request.get_json()
+    session_id = data.get('session_id', '')
+    recipient_email = (data.get('recipient_email') or '').strip()
+    recipient_name = (data.get('recipient_name') or '').strip()
+    language = data.get('language') or 'id'
+
+    if not recipient_email or not recipient_name:
+        raise AppMessageException('invalid input: recipient_name and recipient_email are required', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    known_session = session_logic.get_session(session_id, validate=True)
+
+    if not known_session.account_id:
+        known_session.account_id = current_user.id
+        db.session.commit()
+
+    job = export_job_logic.get_export_job(session_id)
+    if not job or not job.ee_image_serialized:
+        raise AppMessageException('no export job found, please run lulc-map first')
+
+    if job.status != 'done' or not job.download_url:
+        raise AppMessageException('map export is not ready to be shared yet, please try again in a few minutes', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    sender_name = current_user.fullname or current_user.email
+    export_job_logic.send_share_link(
+        to_email=recipient_email,
+        recipient_name=recipient_name,
+        sender_name=sender_name,
+        view_url=job.download_url,
+        language=language,
+    )
+
+    return make_response(jsonify(success_handler({'message': 'email sent'})), 200)
+
+
 @luma_apis_blueprint.route('/download-status', methods=['GET'])
 @cross_origin()
 def download_status():
