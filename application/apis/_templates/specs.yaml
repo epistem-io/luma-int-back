@@ -1069,6 +1069,71 @@ paths:
                   type: string
                   examples:
                     - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+  /api/v1/luma/share-map:
+    post:
+      tags:
+        - Luma module
+      summary: share map result via email
+      security:
+        - Authorization: []
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: ShareMapOk
+                required:
+                  - message
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - email sent
+          description: Share email sent to the recipient
+        "400":
+          $ref: "#/components/responses/Bad Request"
+        "401":
+          $ref: "#/components/responses/No Auth"
+        "500":
+          $ref: "#/components/responses/Internal Server Error"
+      parameters: []
+      description: >-
+        Email the generated LULC map result to a recipient. Requires the export
+        job for the session to be done (run `/lulc-map` and wait for the export
+        to finish). The email language is selected with `language` (`id` or
+        `en`, defaults to `id`).
+      operationId: shareMap
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - session_id
+                - recipient_name
+                - recipient_email
+              properties:
+                session_id:
+                  type: string
+                  examples:
+                    - b06e52c5-694d-4890-9a0e-ae9e4a581da5
+                recipient_name:
+                  type: string
+                  examples:
+                    - Jane Doe
+                recipient_email:
+                  type: string
+                  examples:
+                    - jane@example.com
+                language:
+                  type: string
+                  enum:
+                    - id
+                    - en
+                  examples:
+                    - id
   /api/v1/luma/download-status:
     get:
       tags:
