@@ -105,7 +105,7 @@ def _classify(known_session, aoi, luma):
         image=image,
         class_prop=CLASS_PROPERTY,
         pixel_size=luma.spatial_resolution,
-        train_ratio=SPLIT_RATIO,
+        train_ratio=luma.split_ratio or SPLIT_RATIO,
     )
 
     lulc = Generate_LULC()
