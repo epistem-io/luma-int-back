@@ -573,12 +573,41 @@ def training_data_separability():
     g_var.__api_description__ = 'training_data_separability'
     
     session_id = request.args.get('session_id', '')
-    
+
+    # Optional tuning (same bounds as LumaLite Module 4). Omitted -> defaults:
+    # scale = session spatial resolution, max_pixels_per_class = 5000.
+    def _optional_int(name, min_value, max_value):
+        raw = request.args.get(name)
+        if raw in (None, ''):
+            return None
+        try:
+            value = int(float(raw))
+        except Exception:
+            raise AppMessageException(
+                f'invalid input: {name}, format: integer between {min_value} and {max_value}',
+                error=ErrorCodeEnum.ERR_VALIDATION,
+            )
+        if value < min_value or value > max_value:
+            raise AppMessageException(
+                f'invalid input: {name}, format: integer between {min_value} and {max_value}',
+                error=ErrorCodeEnum.ERR_VALIDATION,
+            )
+        return value
+
+    scale = _optional_int('scale', 10, 1000)
+    max_pixels_per_class = _optional_int('max_pixels_per_class', 1000, 10000)
+
     known_session = session_logic.get_session(session_id, validate=True)
     luma = luma_logic.get(known_session, validate=True)
     known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
-    
-    sample_quality_result = separability.analyze(known_session, aoi, luma)
+
+    sample_quality_result = separability.analyze(
+        known_session,
+        aoi,
+        luma,
+        scale=scale,
+        max_pixels_per_class=max_pixels_per_class,
+    )
     
     results = {
         'message': 'success',
