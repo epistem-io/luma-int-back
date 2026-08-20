@@ -9,8 +9,19 @@ from luma_ge.sample_data_quality import sample_quality
 
 MAX_PIXELS_PER_CLASS = 5000
 
-def analyze(known_session, aoi, luma):
+def analyze(known_session, aoi, luma, scale=None, max_pixels_per_class=None):
+    """
+    Run the class separability analysis for a session's training points.
+
+    Args:
+        scale: sampling scale in metres; defaults to the session's
+            spatial resolution.
+        max_pixels_per_class: per-class random pixel cap; defaults to
+            MAX_PIXELS_PER_CLASS. (Same tunables as LumaLite Module 4.)
+    """
     session_id = known_session.id
+    scale = scale or luma.spatial_resolution
+    max_pixels_per_class = max_pixels_per_class or MAX_PIXELS_PER_CLASS
     
     train_gdf = gpd.read_postgis(
         db.text(
@@ -54,8 +65,8 @@ def analyze(known_session, aoi, luma):
     )
     
     pixel_extract = analyzer.extract_spectral_values(
-        scale=luma.spatial_resolution,
-        max_pixels_per_class=MAX_PIXELS_PER_CLASS
+        scale=scale,
+        max_pixels_per_class=max_pixels_per_class
     )
     sep_df = analyzer.get_separability_df(pixel_extract, method='TD')
 

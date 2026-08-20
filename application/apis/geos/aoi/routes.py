@@ -16,6 +16,7 @@ from application.models.user import Session
 
 # logic
 from application.logic.geos import aoi as logic
+from application.logic.geos import regency as regency_logic
 from application.logic.user import session as session_logic
 
 # utils
@@ -103,6 +104,56 @@ def geos_aoi_upload():
         'message': 'success',
         'data': known_aoi.to_json(),
         'geometry': geometry
+    }
+
+    return make_response(jsonify(success_handler(results)), 200)
+
+
+@geos_apis_blueprint.route('/aoi/regencies', methods=['GET'])
+@cross_origin()
+def geos_aoi_regencies():
+    """List Indonesian Kabupaten/Kota for the 'Pilih Kabupaten/Kota' AOI option."""
+    g_var.__api_name__ = 'geos_aoi_regencies'
+    g_var.__api_description__ = 'geos aoi regency list'
+
+    results = {
+        'message': 'success',
+        'data': regency_logic.list_regencies(),
+    }
+
+    return make_response(jsonify(success_handler(results)), 200)
+
+
+@geos_apis_blueprint.route('/aoi/regency', methods=['POST'])
+@cross_origin()
+def geos_aoi_regency():
+    """Set the session AOI to the polygon of the selected Kabupaten/Kota (by KDPKAB code)."""
+    g_var.__api_name__ = 'geos_aoi_regency'
+    g_var.__api_description__ = 'geos aoi from regency'
+
+    if not request.is_json:
+        raise AppMessageException('please provide json data', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    data = request.get_json()
+    code = data.get('code')
+    session_id = data.get('session_id')
+
+    if not code:
+        raise AppMessageException('please provide regency code', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    geometry, area_m2, regency = regency_logic.get_regency_geojson(code)
+
+    known_session = session_logic.init_session(session_id)
+
+    known_aoi = logic.save_aoi(known_session, geometry, area_m2, regency_code=regency['code'])
+
+    db.session.commit()
+
+    results = {
+        'message': 'success',
+        'data': known_aoi.to_json(),
+        'geometry': geometry,
+        'regency': regency,
     }
 
     return make_response(jsonify(success_handler(results)), 200)

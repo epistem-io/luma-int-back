@@ -18,6 +18,7 @@ import arrow
 from application.logic.geos import aoi as aoi_logic
 from application.logic.user import session as session_logic
 from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor, separability, thematic, export_job as export_job_logic
+from application.logic.luma import composite as composite_logic
 from application.logic.luma.gcs_export import write_author_metadata
 from application.logic.geos import gee_utils
 
@@ -86,6 +87,46 @@ def generate_image_mosaic():
     results = {
         'message': 'success',
         'results': mosaic_results
+    }
+
+    return make_response(jsonify(success_handler(results)), 200)
+
+
+@luma_apis_blueprint.route('/image-mosaic/download-url', methods=['GET'])
+@cross_origin()
+def image_mosaic_download_url():
+    """
+    Lazily build the GeoTIFF download URL for the current session's mosaic
+    (params saved by /image-mosaic). Called by the frontend on download click
+    when /image-mosaic returned download_url = null (MOSAIC_FAST_PATH).
+    Returns download_url = '' when Earth Engine refuses (e.g. > 50 MB request).
+    """
+    g_var.__api_name__ = 'image_mosaic_download_url'
+    g_var.__api_description__ = 'image_mosaic_download_url'
+
+    session_id = request.args.get('session_id', '')
+
+    known_session = session_logic.get_session(session_id, validate=True)
+    known_luma = luma_logic.get(known_session, validate=True)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
+
+    start_date = arrow.get(known_luma.start_date).format('YYYY-MM-DD')
+    end_date = arrow.get(known_luma.end_date).format('YYYY-MM-DD')
+    landsat_version = known_luma.landsat_version or 'L8_SR'
+    cloud_cover = known_luma.cloud_cover if known_luma.cloud_cover is not None else 30
+    spatial_resolution = known_luma.spatial_resolution or 30
+
+    composite = composite_logic.build_composite(aoi, start_date, end_date, landsat_version, cloud_cover)
+    if composite is None:
+        raise AppMessageException('no imagery found for the saved parameters', error=ErrorCodeEnum.ERR_NOT_FOUND)
+
+    download_url = image_mosaic.get_download_url(
+        composite, aoi, session_id, landsat_version, start_date, end_date, spatial_resolution
+    )
+
+    results = {
+        'message': 'success',
+        'results': { 'download_url': download_url }
     }
 
     return make_response(jsonify(success_handler(results)), 200)
@@ -319,6 +360,17 @@ def post_predictor():
         if ntrees < 0:
             raise AppMessageException('invalid input: ntrees, format: positive number', error=ErrorCodeEnum.ERR_VALIDATION)
 
+    split_ratio = data.get('split_ratio', 0.7)
+    try:
+        split_ratio = float(split_ratio)
+    except Exception as e:
+        raise AppMessageException('invalid input: split ratio, format: number between 0.1 and 0.9', error=ErrorCodeEnum.ERR_VALIDATION)
+    if split_ratio > 1:
+        # accept percent form (e.g. 70) as well as fraction (0.7)
+        split_ratio = split_ratio / 100.0
+    if split_ratio < 0.1 or split_ratio > 0.9:
+        raise AppMessageException('invalid input: split ratio, format: number between 0.1 and 0.9', error=ErrorCodeEnum.ERR_VALIDATION)
+
     if predictors:
         try:
             predictors = list(predictors)
@@ -330,7 +382,8 @@ def post_predictor():
 
     luma.ntrees = ntrees
     luma.min_leaf = min_leaf
-    
+    luma.split_ratio = split_ratio
+
     predictor.set_predictor_config(known_session, luma, predictors)
 
     return make_response(jsonify(success_handler({ 'message': 'success' })), 200)
@@ -520,12 +573,41 @@ def training_data_separability():
     g_var.__api_description__ = 'training_data_separability'
     
     session_id = request.args.get('session_id', '')
-    
+
+    # Optional tuning (same bounds as LumaLite Module 4). Omitted -> defaults:
+    # scale = session spatial resolution, max_pixels_per_class = 5000.
+    def _optional_int(name, min_value, max_value):
+        raw = request.args.get(name)
+        if raw in (None, ''):
+            return None
+        try:
+            value = int(float(raw))
+        except Exception:
+            raise AppMessageException(
+                f'invalid input: {name}, format: integer between {min_value} and {max_value}',
+                error=ErrorCodeEnum.ERR_VALIDATION,
+            )
+        if value < min_value or value > max_value:
+            raise AppMessageException(
+                f'invalid input: {name}, format: integer between {min_value} and {max_value}',
+                error=ErrorCodeEnum.ERR_VALIDATION,
+            )
+        return value
+
+    scale = _optional_int('scale', 10, 1000)
+    max_pixels_per_class = _optional_int('max_pixels_per_class', 1000, 10000)
+
     known_session = session_logic.get_session(session_id, validate=True)
     luma = luma_logic.get(known_session, validate=True)
     known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
-    
-    sample_quality_result = separability.analyze(known_session, aoi, luma)
+
+    sample_quality_result = separability.analyze(
+        known_session,
+        aoi,
+        luma,
+        scale=scale,
+        max_pixels_per_class=max_pixels_per_class,
+    )
     
     results = {
         'message': 'success',

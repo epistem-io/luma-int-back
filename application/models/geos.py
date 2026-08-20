@@ -11,6 +11,9 @@ class Aoi(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=get_uuid)
     geom = db.Column(Geometry(geometry_type='GEOMETRY', srid=4326))
     area_size = db.Column(db.Numeric(18, 4, asdecimal=False, decimal_return_scale=None), nullable=True)
+    # BPS code (KDPKAB) when the AOI was chosen via Kabupaten/Kota; lets us pass
+    # a server-side asset reference to Earth Engine instead of the raw geometry.
+    regency_code = db.Column(db.String(16), nullable=True)
 
     session_id = db.Column(db.String(36), db.ForeignKey('user_session.id'), index=True, nullable=False)
     session = db.relationship('Session', backref='aoi')
@@ -26,6 +29,7 @@ class Aoi(db.Model):
             'id': self.id,
             # 'geom': self.geom,
             'area_size': self.area_size,
+            'regency_code': self.regency_code,
             'session_id': self.session_id,
 
             'created_date': self.created_date.isoformat() if self.created_date else None,

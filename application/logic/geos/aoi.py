@@ -25,6 +25,9 @@ from shapely.geometry import shape
 from fiona.drvsupport import supported_drivers
 
 from application.utils.common import AppMessageException, remove_tree_file, ErrorCodeEnum
+from application.feature_flags import mosaic_fast_path
+
+import logging
 
 from luma_ge.input_utils import shapefile_validator, EE_converter
 
@@ -34,21 +37,36 @@ converter = EE_converter(verbose=True)
 def aoi(known_session, geometry):
     geometry = ee.Geometry(geometry)
 
-    shapely_geom = shape(geometry.getInfo())
+    geojson = geometry.getInfo()
+    area_size = geometry.area().getInfo()
+
+    return save_aoi(known_session, geojson, area_size)
+
+
+def save_aoi(known_session, geojson_geometry, area_size_m2, regency_code=None):
+    """
+    Upsert the session AOI from an already-resolved GeoJSON geometry and its
+    area in square metres (no Earth Engine round-trip). Used by `aoi()` and by
+    callers that already computed geometry+area server-side (e.g. regency).
+
+    `regency_code` (KDPKAB) is stored when the AOI came from the Kabupaten/Kota
+    picker so later steps can reference the GEE asset server-side; it is reset
+    to None for drawn/uploaded AOIs.
+    """
+    shapely_geom = shape(geojson_geometry)
     wkt_geom = shapely_to_wkt(shapely_geom)
 
     known_aoi = Aoi.query.filter_by(session_id=known_session.id).first()
     if not known_aoi:
         known_aoi = Aoi()
         known_aoi.session_id = known_session.id
-    
-    known_aoi.geom = wkt_geom
 
-    area_size = geometry.area().getInfo()
-    known_aoi.area_size = (area_size / 10000) if area_size else 0
-    
+    known_aoi.geom = wkt_geom
+    known_aoi.area_size = (area_size_m2 / 10000) if area_size_m2 else 0
+    known_aoi.regency_code = regency_code or None
+
     db.session.add(known_aoi)
-    
+
     return known_aoi
 
 def ee_geometry_to_wkt(geometry:ee.Geometry):
@@ -192,7 +210,24 @@ def get_ee_aoi(session_id):
     max_draw_area = Settings.get_settings('MAX_DRAW_AREA')
     if known_aoi.area_size > int(max_draw_area):
         raise AppMessageException('draw area exceeds maximum limit', error=ErrorCodeEnum.ERR_VALIDATION)
-    
-    aoi = wkb_to_ee_geometry(str(known_aoi.geom))
-    
+
+    aoi = None
+
+    # Fast path: a Kabupaten/Kota AOI can be expressed as a server-side
+    # reference to the GEE asset. This avoids re-sending every vertex of the
+    # (often huge, multi-island) polygon on every Earth Engine call, which was
+    # measured at ~20 s per call for large regencies. Disable with
+    # MOSAIC_FAST_PATH=0 to always use the stored geometry.
+    if known_aoi.regency_code and mosaic_fast_path():
+        try:
+            from application.logic.geos import regency as regency_logic
+            aoi = regency_logic.get_regency_ee_geometry(known_aoi.regency_code)
+        except Exception as e:
+            logging.warning('get_ee_aoi: regency reference failed for %s, falling back to stored geometry: %s',
+                            known_aoi.regency_code, e)
+            aoi = None
+
+    if aoi is None:
+        aoi = wkb_to_ee_geometry(str(known_aoi.geom))
+
     return known_aoi, aoi

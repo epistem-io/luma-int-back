@@ -103,7 +103,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     lulc_composition = []
     class_property = 'class_id'
     pixel_size = spatial_resolution
-    split_ratio = 0.7
+    split_ratio = luma.split_ratio or 0.7
     scale = spatial_resolution
     reflectance = Reflectance_Data()
     lulc = Generate_LULC()

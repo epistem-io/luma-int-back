@@ -23,6 +23,7 @@ def save_param(
             spatial_resolution=spatial_resolution,
             ntrees=300,
             min_leaf=2,
+            split_ratio=0.7,
             use_predictor=False
         )
         db.session.add(known_luma)
