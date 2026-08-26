@@ -22,6 +22,7 @@ class Luma(db.Model):
     spatial_resolution = db.Column(db.Integer, nullable=True)
     ntrees = db.Column(db.Integer, nullable=True)
     min_leaf = db.Column(db.Integer, nullable=True)
+    split_ratio = db.Column(db.Float, nullable=True)  # training fraction 0-1; NULL = legacy 0.7
     predictor_config = db.Column(JSONB, nullable=True)
     use_predictor = db.Column(db.Boolean, default=False)
     
@@ -41,6 +42,7 @@ class Luma(db.Model):
             'spatial_resolution': self.spatial_resolution,
             'ntrees': self.ntrees,
             'min_leaf': self.min_leaf,
+            'split_ratio': self.split_ratio,
             'predictor_config': self.predictor_config,
             'use_predictor': self.use_predictor,
             'session_id': self.session_id,

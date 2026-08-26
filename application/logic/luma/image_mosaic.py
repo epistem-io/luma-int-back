@@ -5,7 +5,10 @@ import pandas as pd
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
 
 from flask import current_app
-from application.utils.common import get_date
+from application.utils.common import get_date, AppMessageException, ErrorCodeEnum
+from application.feature_flags import mosaic_fast_path, mosaic_layers, mosaic_parallel_workers
+
+from concurrent.futures import ThreadPoolExecutor
 
 def generate(
     session_id: str,
@@ -54,6 +57,29 @@ def generate(
         except Exception as e:
             total_images = 0
 
+    if total_images == 0:
+        # An empty collection would only fail later inside Earth Engine (when the
+        # composite tiles are requested) with an opaque
+        # "Element.get: Parameter 'object' is required and may not be null".
+        # Fail early with an actionable message instead.
+        raise AppMessageException(
+            'No {sensor} images found for the selected area between {start} and {end} '
+            'with cloud cover below {cc}%. Try a higher cloud cover threshold, '
+            'a different year, or another Landsat sensor.'.format(
+                sensor=optical_data, start=start_date, end=end_date, cc=cloud_cover),
+            error=ErrorCodeEnum.ERR_VALIDATION,
+        )
+
+    if thermal_collection is not None:
+        # Older sensors (Landsat 4/5) can have optical scenes but no matching TOA
+        # scenes; an empty thermal collection would break the thermal tile layer.
+        try:
+            if int(thermal_collection.size().getInfo()) == 0:
+                current_app.logger.warning('image mosaic: no thermal (TOA) images for {} {}..{}, skipping thermal band'.format(optical_data, start_date, end_date))
+                thermal_collection = None
+        except Exception as e:
+            current_app.logger.warning('image mosaic: thermal size check failed: {}'.format(e))
+
     image_processor = final_Image()
     if thermal_collection is not None:
         thermal_median = thermal_collection.median().clip(aoi)
@@ -98,22 +124,44 @@ def generate(
         }
     }
 
-    Map = geemap.Map()
-    Map.centerObject(aoi, 8)
-    Map.addLayer(aoi, {'color': 'red', 'fillColor': '00000000'}, 'Area of Interest (AOI)')
-    Map.addLayer(collection, band_combinations['True Color (RGB)'], 'Landsat Collection')
-    if thermal_collection is not None:
-        thermal_vis = { 'min': 286, 'max': 300, 'gamma': 0.4 }
-        Map.addLayer(thermal_median, thermal_vis, "Composite - Thermal Band")
-    
-    for selected_combination in band_combinations.keys():
-        vis_params = band_combinations[selected_combination]
-        Map.addLayer(composite, vis_params, f'Composite - {selected_combination}')
+    fast_path = mosaic_fast_path()
 
-    layers = []
-    for m in Map.ee_layer_dict.keys():
-        d = Map.ee_layer_dict[m]
-        layers.append({ 'name': m, 'url': d['ee_layer'].url })
+    if fast_path:
+        # Only compute the tile layers the frontend actually renders, and fetch
+        # their map ids concurrently. No Map.centerObject() (the frontend fits
+        # the view to the AOI itself). Set MOSAIC_FAST_PATH=0 to restore the
+        # original geemap-based block below.
+        thermal_vis = { 'min': 286, 'max': 300, 'gamma': 0.4 }
+        candidates = [
+            ('Area of Interest (AOI)', ee.Image().paint(aoi, 1, 2), {'palette': ['red']}),
+            ('Landsat Collection', collection, band_combinations['True Color (RGB)']),
+        ]
+        if thermal_collection is not None:
+            candidates.append(('Composite - Thermal Band', thermal_median, thermal_vis))
+        for selected_combination, vis_params in band_combinations.items():
+            candidates.append((f'Composite - {selected_combination}', composite, vis_params))
+
+        wanted = set(mosaic_layers())
+        selected = [c for c in candidates if c[0] in wanted]
+
+        layers = _get_tile_layers(selected, workers=mosaic_parallel_workers())
+    else:
+        Map = geemap.Map()
+        Map.centerObject(aoi, 8)
+        Map.addLayer(aoi, {'color': 'red', 'fillColor': '00000000'}, 'Area of Interest (AOI)')
+        Map.addLayer(collection, band_combinations['True Color (RGB)'], 'Landsat Collection')
+        if thermal_collection is not None:
+            thermal_vis = { 'min': 286, 'max': 300, 'gamma': 0.4 }
+            Map.addLayer(thermal_median, thermal_vis, "Composite - Thermal Band")
+        
+        for selected_combination in band_combinations.keys():
+            vis_params = band_combinations[selected_combination]
+            Map.addLayer(composite, vis_params, f'Composite - {selected_combination}')
+
+        layers = []
+        for m in Map.ee_layer_dict.keys():
+            d = Map.ee_layer_dict[m]
+            layers.append({ 'name': m, 'url': d['ee_layer'].url })
     
     results = {
         'layers': layers,
@@ -149,11 +197,23 @@ def generate(
         }
     
     # region export
-    results['download_url'] = ''
+    if fast_path:
+        # None = "not computed yet": the frontend requests it lazily via
+        # GET /luma/image-mosaic/download-url when the user clicks download.
+        # ("" keeps its old meaning of "tried and failed".)
+        results['download_url'] = None
+    else:
+        results['download_url'] = get_download_url(composite, aoi, session_id, optical_data, start_date, end_date, spatial_resolution)
+    
+    return results
+
+
+def get_download_url(composite, aoi, session_id, optical_data, start_date, end_date, spatial_resolution):
+    """GeoTIFF download URL for the composite; '' when Earth Engine refuses (e.g. > 50 MB)."""
     band_names = composite.bandNames()
     composite = composite.select(band_names)
     try:
-        results['download_url'] = composite.getDownloadURL({
+        return composite.getDownloadURL({
             "name": 'LULC_{sensor}_{start_date}_{end_date}_{session_id}_IM'.format(sensor=optical_data, start_date=start_date, end_date=end_date, session_id=session_id),
             "crs": 'EPSG:4326', # default
             "scale": spatial_resolution, # default
@@ -164,5 +224,21 @@ def generate(
         })
     except Exception as e:
         current_app.logger.error('failed to get download url: {}'.format(str(e)))
-    
-    return results
+        return ''
+
+
+def _get_tile_layers(entries, workers=4):
+    """
+    entries: list of (name, ee_object, vis_params). Returns [{name, url}] in the
+    same order, fetching map ids concurrently (each getMapId is one EE call).
+    """
+    def one(entry):
+        name, obj, vis = entry
+        map_id = obj.getMapId(vis)
+        return { 'name': name, 'url': map_id['tile_fetcher'].url_format }
+
+    if workers <= 1 or len(entries) <= 1:
+        return [one(e) for e in entries]
+
+    with ThreadPoolExecutor(max_workers=min(workers, len(entries))) as pool:
+        return list(pool.map(one, entries))

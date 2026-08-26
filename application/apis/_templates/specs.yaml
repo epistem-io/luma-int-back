@@ -1202,7 +1202,7 @@ paths:
         "500":
           $ref: "#/components/responses/Internal Server Error"
       parameters: []
-      description: set predictor configuration (ntrees, min_leaf, predictors)
+      description: set predictor configuration (ntrees, min_leaf, split_ratio, predictors)
       operationId: predictorPost
       requestBody:
         content:
@@ -1226,6 +1226,11 @@ paths:
                   examples:
                     - 300
                   description: number of trees, default 300
+                split_ratio:
+                  type: number
+                  examples:
+                    - 0.7
+                  description: training data fraction (0.1-0.9, percent form like 70 also accepted), default 0.7
                 predictors:
                   type: array
                   items:
@@ -1317,6 +1322,10 @@ components:
           type: integer
           examples:
             - 2
+        split_ratio:
+          type: number
+          examples:
+            - 0.7
         predictor_config:
           type: object
           nullable: true
