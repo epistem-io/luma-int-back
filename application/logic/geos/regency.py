@@ -32,6 +32,22 @@ REGENCY_LIST_CACHE_TTL = int(os.environ.get('REGENCY_LIST_CACHE_TTL', 60 * 60 * 
 _cache_lock = threading.Lock()
 _cache = {'options': None, 'expires_at': 0.0}
 
+def _normalize_polygonal_geometry(geometry):
+    if not geometry or geometry.get('type') != 'GeometryCollection':
+        return geometry
+    
+    coordinates = []
+    for part in geometry.get('geometries') or []:
+        part_type = part.get('type')
+        if part_type == 'Polygon':
+            coordinates.append(part.get('coordinates'))
+        elif part_type == 'MultiPolygon':
+            coordinates.extend(part.get('coordicates') or [])
+            
+    if not coordinates:
+        return geometry
+    
+    return { 'type': 'MultiPolygon', 'coordinates': coordinates }
 
 def _asset():
     return ee.FeatureCollection(REGENCY_ASSET_PATH)
@@ -123,7 +139,7 @@ def get_regency_geojson(code):
         'area': ee_geometry.area(),
     }).getInfo()
 
-    geometry = (result or {}).get('geometry')
+    geometry = _normalize_polygonal_geometry((result or {}).get('geometry'))
     area_m2 = (result or {}).get('area') or 0
 
     if not geometry or not geometry.get('coordinates'):
