@@ -125,6 +125,15 @@ def remove_non_default(classes, commit=True):
         db.session.commit()
     return kept
 
+def is_default_scheme(classes):
+    if not classes:
+        return False
+    defaults = get_default_classes_list()
+    expected = {(str(d['id']), str(d['class']).lower()) for d in defaults}
+    return all(
+        (str(c.get('class_id')), str(c.get('class_name')).lower()) in expected
+        for c in classes
+    )
 
 def set_default_classes(known_session):
     delete(known_session)

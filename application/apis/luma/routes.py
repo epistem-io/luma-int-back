@@ -152,7 +152,8 @@ def define_lulc_classes():
     classes = lulc_classes.process(known_session, classes, None, None)
 
     training_data.delete(known_session, commit=True)
-    training_data.set_default_training_points(known_session)
+    if lulc_classes.is_default_scheme(classes):
+        training_data.set_default_training_points(known_session)
     dt = training_data.get_with_geometry(known_session)
 
     results = {
