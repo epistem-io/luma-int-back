@@ -122,3 +122,49 @@ class ErrorLog(db.Model):
     trace = db.Column(db.Text, nullable=True)
 
     created_date = db.Column(db.DateTime, default=get_date)
+
+
+class Project(db.Model):
+    __tablename__ = 'user_project'
+    id = db.Column(db.String(36), primary_key=True, default=get_uuid)
+
+    account_id = db.Column(db.String(36), db.ForeignKey('user_account.id'), index=True, nullable=False)
+    account = db.relationship('Account', backref='project')
+
+    session_id = db.Column(db.String(36), db.ForeignKey('user_session.id'), index=True, nullable=False)
+    session = db.relationship('Session', backref='project')
+
+    name = db.Column(db.String(256), nullable=False)
+    # The frontend's SessionCheckpoint, stored opaquely (only its top-level
+    # sessionId is ever rewritten, to keep it matching session_id).
+    checkpoint = db.Column(JSONB, nullable=False)
+    # Original project id when this project was received via share.
+    shared_from = db.Column(db.String(36), nullable=True)
+
+    created_date = db.Column(db.DateTime, default=get_date)
+    modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)
+
+    def to_json(self, attr=[]):
+        if attr:
+            return map_attr(self, attr)
+
+        return {
+            'id': self.id,
+            'account_id': self.account_id,
+            'session_id': self.session_id,
+            'name': self.name,
+            'checkpoint': self.checkpoint,
+            'shared_from': self.shared_from,
+            'created_date': self.created_date.isoformat() if self.created_date else None,
+            'modified_date': self.modified_date.isoformat() if self.modified_date else None,
+        }
+
+    def to_summary_json(self):
+        checkpoint = self.checkpoint if isinstance(self.checkpoint, dict) else {}
+        return {
+            'id': self.id,
+            'name': self.name,
+            'last_step': checkpoint.get('lastStepWithData'),
+            'shared_from': self.shared_from,
+            'modified_date': self.modified_date.isoformat() if self.modified_date else None,
+        }

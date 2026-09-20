@@ -74,5 +74,8 @@ def create_app():
 
         from .apis import apis_blueprint
         app.register_blueprint(apis_blueprint, url_prefix='/api/v1')
+        
+        from .apis.project import project_apis_blueprint
+        app.register_blueprint(project_apis_blueprint, url_prefix='/api/v1/projects')
     
     return app
