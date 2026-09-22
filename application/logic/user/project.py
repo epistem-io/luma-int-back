@@ -1,6 +1,10 @@
+import logging
+
 from application import db
 from application.models.user import Project, Account
 from application.logic.user import session as session_logic
+from application.logic.user.account import AccountLogic
+from application.logic.user.invite_rules import is_valid_email
 from application.logic.user.project_rules import (
     normalize_email,
     validate_project_name,
@@ -74,26 +78,44 @@ def delete_project(account_id, project_id):
     db.session.commit()
     
 def share_project(account_id, project_id, recipient_email):
+    """Fork a project to `recipient_email`. Returns (new_project, invited):
+    invited is True when the recipient still has to set a password."""
     known_project = get_project(account_id, project_id)
-    
+
     email = normalize_email(recipient_email)
     if not email:
         raise AppMessageException('please input: email', error=ErrorCodeEnum.ERR_VALIDATION)
-    
-    recipient = Account.query.filter(func.lower(Account.email) == email).first()
-    if not recipient:
-        raise AppMessageException(
-            'recipient not found. they need a Luma account first.',
-            error=ErrorCodeEnum.ERR_VALIDATION,
-        )
-    
-    if recipient.id == account_id:
+    if not is_valid_email(email):
+        raise AppMessageException('invalid input format: email', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    # Emails are neither unique nor lower-cased in this table: prefer the
+    # account that can actually log in, then the oldest, so the pick is stable.
+    # nullslast: Postgres sorts NULL first under DESC, and legacy rows may
+    # have is_active = NULL.
+    recipient = (
+        Account.query.filter(func.lower(Account.email) == email)
+        .order_by(Account.is_active.desc().nullslast(), Account.created_date.asc())
+        .first()
+    )
+    if recipient and recipient.id == account_id:
         raise AppMessageException(
             'cannot share a project with yourself.',
             error=ErrorCodeEnum.ERR_VALIDATION,
         )
-        
+
+    sender = Account.query.filter_by(id=account_id).first()
+    sender_name = (sender.fullname or sender.email) if sender else 'A Luma user'
+    invited = False
+
+    # One transaction for the invited account + the whole fork.
     try:
+        if not recipient:
+            recipient = AccountLogic.create_invited_account(email, account_id)
+            invited = True
+        elif not recipient.is_active:
+            AccountLogic.ensure_invite_token(recipient)
+            invited = True
+
         new_session = session_logic.clone_session(
             known_project.session_id, account_id=recipient.id
         )
@@ -115,4 +137,14 @@ def share_project(account_id, project_id, recipient_email):
         raise
 
     db.session.refresh(new_project)
-    return new_project
+
+    # The share already succeeded; a mail failure must not undo or fail it.
+    try:
+        if invited:
+            AccountLogic.send_invite_email(recipient, sender_name, known_project.name)
+        else:
+            AccountLogic.send_share_notification(recipient, sender_name, known_project.name)
+    except Exception as e:
+        logging.error('share email failed for project {}: {}'.format(new_project.id, str(e)))
+
+    return new_project, invited

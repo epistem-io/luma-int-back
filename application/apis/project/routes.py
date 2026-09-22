@@ -119,11 +119,15 @@ def share_project(project_id):
         if not request.is_json:
             raise AppMessageException('please provide json data', error=ErrorCodeEnum.ERR_VALIDATION)
         data = _json_body()
-        new_project = project_logic.share_project(
+        new_project, invited = project_logic.share_project(
             account.id, project_id, data.get('email')
         )
         return make_response(
-            jsonify(success_handler({'shared': True, 'recipient_project_id': new_project.id})),
+            jsonify(success_handler({
+                'shared': True,
+                'invited': invited,
+                'recipient_project_id': new_project.id,
+            })),
             200,
         )
     except Exception as e:

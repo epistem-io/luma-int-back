@@ -31,6 +31,13 @@ class Account(UserMixin, db.Model):
     signup_token_expires = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, default=False)
 
+    # Account id of the user whose share created this account (NULL for self-signups).
+    invited_by = db.Column(db.String(36), index=True, nullable=True)
+
+    # One-time code that turns a finished set-password into a login on the Luma app.
+    login_code = db.Column(db.String(64), unique=True, nullable=True)
+    login_code_expires = db.Column(db.DateTime, nullable=True)
+
     rowstatus = db.Column(db.Integer, default=1)
     created_by = db.Column(db.String(100), nullable=True)
     created_date = db.Column(db.DateTime, default=get_date)
@@ -41,10 +48,18 @@ class Account(UserMixin, db.Model):
         self.api_key = sha256_crypt.hash(self.email + str(get_date()))
         self.api_key_expires = get_date() + timedelta(hours=24)
 
-    def encode_signup_token(self) -> None:
-        import uuid
+    def encode_signup_token(self, hours=24) -> None:
         self.signup_token = str(uuid.uuid4())
-        self.signup_token_expires = get_date() + timedelta(hours=24)
+        self.signup_token_expires = get_date() + timedelta(hours=hours)
+
+    def encode_login_code(self, seconds=60) -> None:
+        import secrets
+        self.login_code = secrets.token_urlsafe(32)
+        self.login_code_expires = get_date() + timedelta(seconds=seconds)
+
+    def clear_login_code(self) -> None:
+        self.login_code = None
+        self.login_code_expires = None
 
     def encode_password(self) -> None:
         self.password = sha256_crypt.hash(self.password)
@@ -166,5 +181,6 @@ class Project(db.Model):
             'name': self.name,
             'last_step': checkpoint.get('lastStepWithData'),
             'shared_from': self.shared_from,
+            'created_date': self.created_date.isoformat() if self.created_date else None,
             'modified_date': self.modified_date.isoformat() if self.modified_date else None,
         }

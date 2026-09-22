@@ -104,6 +104,20 @@ def user_account_resend_verification():
         return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 500)
 
 
+@user_apis_blueprint.route('/account/set-password/<string:token>', methods=['GET'])
+@cross_origin()
+def user_account_set_password_info(token):
+    g_var.__api_name__ = 'user_account_set_password_info'
+    g_var.__api_description__ = 'who a set-password token belongs to (prefills the form)'
+
+    try:
+        return make_response(jsonify(success_handler(AccountLogic.get_set_password_info(token))), 200)
+    except AppMessageException as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 400)
+    except Exception as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 500)
+
+
 @user_apis_blueprint.route('/account/set-password/<string:token>', methods=['POST'])
 @cross_origin()
 def user_account_set_password(token):
@@ -122,7 +136,13 @@ def user_account_set_password(token):
         if len(password) < 8:
             raise AppMessageException('password must be at least 8 characters')
 
-        return make_response(jsonify(success_handler(AccountLogic.set_password(token, password))), 200)
+        # No email here on purpose: the account is resolved from the token alone.
+        return make_response(jsonify(success_handler(AccountLogic.set_password(
+            token,
+            password,
+            fullname=data.get('fullname'),
+            organization_name=data.get('organization_name'),
+        ))), 200)
     except AppMessageException as e:
         return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 400)
     except Exception as e:
@@ -156,5 +176,27 @@ def user_account_login():
         return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 400) # send bad request
     except Exception as e:
         return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 500) # send internal error
+
+
+@user_apis_blueprint.route('/account/login-code', methods=['POST'])
+@cross_origin()
+def user_account_login_code():
+    g_var.__api_name__ = 'user_account_login_code'
+    g_var.__api_description__ = 'exchange a one-time login code for an api key'
+
+    try:
+        if not request.is_json:
+            raise AppMessageException('please provide json data')
+
+        data = request.get_json(silent=True)
+        code = data.get('code') if isinstance(data, dict) else None
+        if not code or not isinstance(code, str):
+            raise AppMessageException('please input: code (text mandatory)')
+
+        return make_response(jsonify(success_handler(AccountLogic.exchange_login_code(code))), 200)
+    except AppMessageException as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 400)
+    except Exception as e:
+        return make_response(jsonify(app_exception_handler(e, services=g_var.__api_name__)), 500)
 
 
