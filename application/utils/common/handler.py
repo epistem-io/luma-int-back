@@ -22,6 +22,9 @@ class ErrorCodeEnum:
     ERR_NOT_FOUND = { 'code': 'ERR_NOT_FOUND', 'message': 'Resource not found' }
     ERR_INTERNAL = { 'code': 'ERR_INTERNAL', 'message': 'Internal server error' }
     ERR_NOAUTH = { 'code': 'ERR_NOAUTH', 'message': 'Not authenticated' }
+    ERR_EMAIL_NOT_REGISTERED = { 'code': 'ERR_EMAIL_NOT_REGISTERED', 'message': 'No account is registered with this email' }
+    ERR_WRONG_PASSWORD = { 'code': 'ERR_WRONG_PASSWORD', 'message': 'Wrong password' }
+    ERR_ACCOUNT_NOT_ACTIVATED = { 'code': 'ERR_ACCOUNT_NOT_ACTIVATED', 'message': 'Account not yet activated' }
 
 class ErrorStack:
     def __init__(self, message='', field='', row=None):
