@@ -10,7 +10,9 @@ from flask_login import login_user
 
 from application.models.user import Account
 from application.models.master import Settings
-from application.utils.common import AppMessageException, get_date, render_html_template
+from application.utils.common import AppMessageException, ErrorCodeEnum, get_date, render_html_template
+from application.logic.user.project_rules import normalize_email
+from sqlalchemy import func
 from application.utils.mail import send_email
 from application.logic.user.invite_rules import (
     INVITE_TOKEN_HOURS,
@@ -29,12 +31,28 @@ class AccountLogic:
 
     @staticmethod
     def login(email: str, password: str) -> dict:
-        known_user = Account.query.filter_by(email=email).first()
-        if not known_user or not known_user.check_password(password):
-            raise AppMessageException('email or password does not match')
-
+        known_user = (
+            Account.query.filter(func.lower(Account.email) == normalize_email(email))
+            .order_by(Account.is_active.desc().nullslast(), Account.created_date.asc())
+            .first()
+        )
+        if not known_user:
+            raise AppMessageException(
+                'no account is registered with this email',
+                error=ErrorCodeEnum.ERR_EMAIL_NOT_REGISTERED,
+            )
         if not known_user.is_active:
-            raise AppMessageException('account not yet activated — please set your password via the verification email')
+            raise AppMessageException(
+                'account not yet activated — please set your password via the verification email',
+                error=ErrorCodeEnum.ERR_ACCOUNT_NOT_ACTIVATED,
+            )
+
+        try:
+            password_ok = known_user.check_password(password)
+        except ValueError:
+            password_ok = False
+        if not password_ok:
+            raise AppMessageException('wrong password', error=ErrorCodeEnum.ERR_WRONG_PASSWORD)
 
         return AccountLogic._auth_payload(known_user)
 
