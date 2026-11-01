@@ -69,13 +69,17 @@ def generate_image_mosaic():
         try:
             spatial_resolution = int(spatial_resolution)
         except Exception as e:
-            raise AppMessageException('invalid input: spatial resolution, format: positive number, choices (30, 100, 500, 1000)', error=ErrorCodeEnum.ERR_VALIDATION)
-        if spatial_resolution not in (30, 100, 500, 1000):
-            raise AppMessageException('invalid input: spatial resolution, format: positive number, choices (30, 100, 500, 1000)', error=ErrorCodeEnum.ERR_VALIDATION)
+            raise AppMessageException('invalid input: spatial resolution, format: positive number, choices (10, 30, 100)', error=ErrorCodeEnum.ERR_VALIDATION)
+        if spatial_resolution not in (10, 30, 100):
+            raise AppMessageException('invalid input: spatial resolution, format: positive number, choices (10, 30, 100)', error=ErrorCodeEnum.ERR_VALIDATION)
 
-    if landsat_version not in ('L1_RAW', 'L2_RAW', 'L3_RAW', 'L4_SR', 'L5_SR', 'L7_SR', 'L8_SR', 'L9_SR'):
+    if landsat_version not in ('L1_RAW', 'L2_RAW', 'L3_RAW', 'L4_SR', 'L5_SR', 'L7_SR', 'L8_SR', 'L9_SR', 'S2_SR'):
         landsat_version = 'L8_SR'
-    
+
+    # Only Sentinel-2 has 10 m bands; Landsat is 30 m.
+    if spatial_resolution == 10 and landsat_version != 'S2_SR':
+        raise AppMessageException('invalid input: 10 m spatial resolution is only available for Sentinel-2', error=ErrorCodeEnum.ERR_VALIDATION)
+
     known_session = session_logic.get_session(session_id, validate=True)
     known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
 
