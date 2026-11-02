@@ -4,15 +4,17 @@ import pandas as pd
 
 from datetime import datetime
 
-from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
+from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats
 
 from flask import current_app
 from application.utils.common import get_date, AppMessageException, ErrorCodeEnum
 from application.feature_flags import mosaic_fast_path, mosaic_layers, mosaic_parallel_workers
+from application.logic.luma.composite import (
+    NO_THERMAL_SENSORS, is_sentinel2, cloud_property,
+    get_optical_collection, get_thermal_collection, median_composite,
+)
 
 from concurrent.futures import ThreadPoolExecutor
-
-RAW_SENSORS = ('L1_RAW', 'L2_RAW', 'L3_RAW')
 
 THERMAL_LAYER = 'Composite - Thermal Band'
 THERMAL_VIS = { 'min': 286, 'max': 300, 'gamma': 0.4 }
@@ -64,33 +66,15 @@ def generate(
     if mosaic_fast_path():
         return _generate_fast(aoi, start_date, end_date, optical_data, cloud_cover)
 
-    # Original path (MOSAIC_FAST_PATH=0), unchanged.
+    # Original path (MOSAIC_FAST_PATH=0), unchanged for Landsat.
     reflectance = Reflectance_Data()
-    collection, meta = reflectance.get_optical_data(
-        aoi=aoi,
-        start_date=start_date,
-        end_date=end_date,
-        optical_data=optical_data,
-        cloud_cover=cloud_cover,
-        verbose=False,
-        compute_detailed_stats=False
-    )
+    collection, meta = get_optical_collection(reflectance, aoi, start_date, end_date, optical_data, cloud_cover)
+    thermal_collection = get_thermal_collection(reflectance, aoi, start_date, end_date, optical_data, cloud_cover)
 
-    thermal_collection = None
-    if optical_data not in RAW_SENSORS:
-        thermal_data = optical_data.replace('_SR', '_TOA')
-        thermal_collection, meta = reflectance.get_thermal_bands(
-            aoi=aoi,
-            start_date=start_date,
-            end_date=end_date,
-            thermal_data=thermal_data,
-            cloud_cover=cloud_cover,
-            verbose=False,
-            compute_detailed_stats=False
-        )
-    
     stats = Reflectance_Stats()
-    detailed_stats = stats.get_collection_statistics(collection, compute_stats=True, print_report=True)
+    # Landsat keeps the default cloud property, so older luma_ge builds still work.
+    stats_kwargs = { 'cloud_property': cloud_property(optical_data) } if is_sentinel2(optical_data) else {}
+    detailed_stats = stats.get_collection_statistics(collection, compute_stats=True, print_report=True, **stats_kwargs)
 
     total_images = detailed_stats.get('total_images', 0)
     if total_images == 0:
@@ -114,16 +98,15 @@ def generate(
         except Exception as e:
             current_app.logger.warning('image mosaic: thermal size check failed: {}'.format(e))
 
-    image_processor = final_Image()
     if thermal_collection is not None:
         thermal_median = thermal_collection.median().clip(aoi)
         #Create multispectral composite using median via final_Image
-        composite = image_processor.get_temporal_composite(collection, aoi, reducer='median', verbose=False)
+        composite = median_composite(collection, aoi)
         #Stack thermal band and ensure float type
         composite = composite.addBands(thermal_median).toFloat()
     else:
-        #For Landsat 1-3 MSS: no thermal bands available — use temporal composite
-        composite = image_processor.get_temporal_composite(collection, aoi, reducer='median', verbose=False).toFloat()
+        #For Landsat 1-3 MSS and Sentinel-2: no thermal bands available — use temporal composite
+        composite = median_composite(collection, aoi).toFloat()
 
     Map = geemap.Map()
     Map.centerObject(aoi, 8)
@@ -159,16 +142,8 @@ def _generate_fast(aoi, start_date, end_date, optical_data, cloud_cover):
     The download URL is left for GET /luma/image-mosaic/download-url.
     """
     reflectance = Reflectance_Data()
-    collection, _ = reflectance.get_optical_data(
-        aoi=aoi,
-        start_date=start_date,
-        end_date=end_date,
-        optical_data=optical_data,
-        cloud_cover=cloud_cover,
-        verbose=False,
-        compute_detailed_stats=False
-    )
-    composite = final_Image().get_temporal_composite(collection, aoi, reducer='median', verbose=False).toFloat()
+    collection, _ = get_optical_collection(reflectance, aoi, start_date, end_date, optical_data, cloud_cover)
+    composite = median_composite(collection, aoi).toFloat()
 
     wanted = set(mosaic_layers())
     candidates = [
@@ -177,7 +152,7 @@ def _generate_fast(aoi, start_date, end_date, optical_data, cloud_cover):
     ]
     # The thermal band only feeds its own layer, which the frontend doesn't
     # show, so it is only built (and size-checked) when MOSAIC_LAYERS asks.
-    if THERMAL_LAYER in wanted and optical_data not in RAW_SENSORS:
+    if THERMAL_LAYER in wanted and optical_data not in NO_THERMAL_SENSORS:
         thermal_layer = _thermal_layer(reflectance, aoi, start_date, end_date, optical_data, cloud_cover)
         if thermal_layer is not None:
             candidates.append(thermal_layer)
@@ -188,7 +163,7 @@ def _generate_fast(aoi, start_date, end_date, optical_data, cloud_cover):
     scene_info = ee.Dictionary({
         'scene_ids': collection.aggregate_array('system:index'),
         'dates': collection.aggregate_array('system:time_start'),
-        'cloud_covers': collection.aggregate_array('CLOUD_COVER_LAND'),
+        'cloud_covers': collection.aggregate_array(cloud_property(optical_data)),
     })
 
     workers = max(1, min(mosaic_parallel_workers(), len(selected) + 1))
@@ -220,15 +195,7 @@ def _generate_fast(aoi, start_date, end_date, optical_data, cloud_cover):
 
 
 def _thermal_layer(reflectance, aoi, start_date, end_date, optical_data, cloud_cover):
-    thermal_collection, _ = reflectance.get_thermal_bands(
-        aoi=aoi,
-        start_date=start_date,
-        end_date=end_date,
-        thermal_data=optical_data.replace('_SR', '_TOA'),
-        cloud_cover=cloud_cover,
-        verbose=False,
-        compute_detailed_stats=False
-    )
+    thermal_collection = get_thermal_collection(reflectance, aoi, start_date, end_date, optical_data, cloud_cover)
     # Older sensors (Landsat 4/5) can have optical scenes but no matching TOA
     # scenes; an empty thermal collection would break the thermal tile layer.
     try:
@@ -249,7 +216,7 @@ def _no_images_error(optical_data, start_date, end_date, cloud_cover):
     return AppMessageException(
         'No {sensor} images found for the selected area between {start} and {end} '
         'with cloud cover below {cc}%. Try a higher cloud cover threshold, '
-        'a different year, or another Landsat sensor.'.format(
+        'a different year, or another satellite.'.format(
             sensor=optical_data, start=start_date, end=end_date, cc=cloud_cover),
         error=ErrorCodeEnum.ERR_VALIDATION,
     )
