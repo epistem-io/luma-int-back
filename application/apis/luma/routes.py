@@ -2,10 +2,11 @@
 from application import db
 from application.apis.luma import luma_apis_blueprint
 from flask import make_response, request, jsonify, current_app, g as g_var
-from flask import Response, stream_with_context
+from flask import Response, stream_with_context, send_file
 from flask_login import current_user
 from flask_cors import cross_origin
 
+import io
 import os
 import uuid
 import json
@@ -20,6 +21,7 @@ from application.logic.user import session as session_logic
 from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor, separability, thematic, export_job as export_job_logic
 from application.logic.luma import composite as composite_logic
 from application.logic.luma.gcs_export import write_author_metadata
+from application.logic.luma.report import store as report_store
 from application.logic.geos import gee_utils
 
 # utils
@@ -322,6 +324,11 @@ def thematic_accuracy_assessment():
 
         validation_gdf = thematic.parse_validation_file(known_session, filepath)
         assessment = thematic.assess(known_session, aoi, luma, validation_gdf)
+        try:
+            report_store.save_thematic(session_id, assessment, file.filename)
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error('thematic accuracy: saving report data failed: {}'.format(e))
     finally:
         remove_tree_file(upload_folder, known_session.id)
 
@@ -550,6 +557,35 @@ def share_map():
     )
 
     return make_response(jsonify(success_handler({'message': 'email sent'})), 200)
+
+
+@luma_apis_blueprint.route('/report', methods=['POST'])
+@cross_origin()
+def report():
+    g_var.__api_name__ = 'report'
+    g_var.__api_description__ = 'build the map report for download'
+
+    if not current_user.is_authenticated:
+        raise AppMessageException('unauthorized', error=ErrorCodeEnum.ERR_NOAUTH)
+
+    if not request.is_json:
+        raise AppMessageException('invalid input: request must be json', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    data = request.get_json()
+    known_session = session_logic.get_session(data.get('session_id', ''), validate=True)
+
+    if not known_session.account_id:
+        known_session.account_id = current_user.id
+        db.session.commit()
+    elif known_session.account_id != current_user.id:
+        raise AppMessageException('this map belongs to another account', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    # imported here so the app still starts where the report's packages
+    # (docxtpl, python-docx, lxml) are not installed yet
+    from application.logic.luma.report import service as report_service
+
+    content, mimetype, filename = report_service.build_report(known_session, current_user, inputs=data.get('inputs'))
+    return send_file(io.BytesIO(content), mimetype=mimetype, as_attachment=True, download_name=filename)
 
 
 @luma_apis_blueprint.route('/download-status', methods=['GET'])

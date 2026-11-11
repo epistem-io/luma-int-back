@@ -10,8 +10,16 @@ from luma_ge.sample_data_quality import sample_quality
 MAX_PIXELS_PER_CLASS = 5000
 
 def analyze(known_session, aoi, luma, scale=None, max_pixels_per_class=None):
+    """Summary only: what the separability endpoint returns."""
+    detail = analyze_detailed(known_session, aoi, luma, scale=scale, max_pixels_per_class=max_pixels_per_class)
+    return detail['summary'] if detail else None
+
+
+def analyze_detailed(known_session, aoi, luma, scale=None, max_pixels_per_class=None):
     """
     Run the class separability analysis for a session's training points.
+    Returns {'summary', 'pixel_counts': {class_id: valid pixels},
+    'pairs': [{a, b, td}] lowest TD first}, or None when it cannot be computed.
 
     Args:
         scale: sampling scale in metres; defaults to the session's
@@ -82,4 +90,11 @@ def analyze(known_session, aoi, luma, scale=None, max_pixels_per_class=None):
             for class_id, count in pixel_extract.groupby('class_id').size().items()
         }
 
-    return build_summary(uploaded_classes, pixel_counts, sep_df)
+    summary = build_summary(uploaded_classes, pixel_counts, sep_df)
+    if summary is None:
+        return None
+    pairs = [
+        {'a': str(row['Class1_Name']), 'b': str(row['Class2_Name']), 'td': float(row['TD_Distance'])}
+        for _, row in sep_df.sort_values('TD_Distance').iterrows()
+    ]
+    return {'summary': summary, 'pixel_counts': pixel_counts, 'pairs': pairs}

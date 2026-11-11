@@ -11,6 +11,7 @@ from flask import current_app
 from application import db
 from application.logic.geos.aoi import converter
 from application.logic.luma import export_job as export_job_logic
+from application.logic.luma.report import store as report_store
 from application.logic.luma.composite import get_optical_collection, get_thermal_collection, median_composite
 from application.utils.common import AppMessageException, get_date
 from application.utils.pubsub import publish
@@ -399,6 +400,17 @@ def generate(known_session, known_aoi, aoi, luma, classes):
             }
     except Exception as e:
         _log_step_failure('evaluate model quality', e)
+
+    # keep what the map report needs; a run without a trained model leaves no report data behind
+    try:
+        if trained_model is not None and train_gdf is not None:
+            report_store.save_generation(session_id, report_store.generation_snapshot(
+                luma, classes, train_gdf, lulc_composition, feature_importance, model_quality_payload))
+        else:
+            report_store.clear(session_id)
+    except Exception as e:
+        db.session.rollback()
+        _log_step_failure('save report data', e)
     step = step + 1
     yield forge_process(step, { 'model_quality': model_quality_payload })
     #endregion

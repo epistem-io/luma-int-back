@@ -178,3 +178,18 @@ class ExportJob(db.Model):
 
     created_date = db.Column(db.DateTime, default=get_date)
     modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)
+
+
+class ReportData(db.Model):
+    """What the map report needs from a run; one row per session (see logic/luma/report/store.py)."""
+    __tablename__ = 'luma_report_data'
+    id = db.Column(db.String(36), primary_key=True, default=get_uuid)
+
+    session_id = db.Column(db.String(36), db.ForeignKey('user_session.id'), index=True, nullable=False)
+    session = db.relationship('Session', backref='luma_report_data')
+
+    generation = db.Column(JSONB, nullable=True)  # snapshot written when the map is generated
+    thematic = db.Column(JSONB, nullable=True)    # latest thematic accuracy test; cleared on regeneration
+
+    created_date = db.Column(db.DateTime, default=get_date)
+    modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)
