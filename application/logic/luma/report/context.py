@@ -19,7 +19,7 @@ generation plus the separability and thematic checks:
 
 `meta` holds what the app does not store today (how the AOI was defined,
 uploaded file names, the area's name, versions, account, project). Figures are
-added separately (figures.py / render.py).
+made separately (figures.py); pdf.py lays the fields and figures out.
 """
 from datetime import datetime, timezone
 

@@ -35,5 +35,5 @@ def coord_id(lat, lon):
 
 
 def hex_code(color):
-    """'#efc6d5' -> 'EFC6D5' (the template's cellbg tag wants no hash)."""
+    """'#efc6d5' -> 'EFC6D5' (pdf.py adds the hash back where it needs one)."""
     return (color or '').lstrip('#').upper()

@@ -1,13 +1,9 @@
 """
 The map report for one session: saved results + live lookups -> PDF.
-
-Returns the .docx instead where LibreOffice is not installed (see
-render.find_soffice for where it is looked up).
 """
 import importlib.metadata
 import json
 import os
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 import ee
@@ -26,11 +22,8 @@ from application.utils.common import AppMessageException, ErrorCodeEnum
 from luma_ge.data_acquisition import Reflectance_Data
 
 from . import builder, store
-from .render import docx_to_pdf, find_soffice
 
-TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), 'templates', 'Luma_Report_Template.docx')
 PDF_MIME = 'application/pdf'
-DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
 # Descriptive values the app does not record; the client may send them with the request.
 INPUT_KEYS = ('aoi_method', 'aoi_file_name', 'aoi_display_name',
@@ -157,15 +150,5 @@ def build_report(known_session, account, inputs=None):
 
     meta = _meta(known_session, account, known_aoi, generation, thematic, inputs)
     luma = generation['luma']
-    name = 'Laporan_Luma_{}_{}_{}'.format(luma['sensor'], luma['start_date'], luma['end_date'])
-
-    with tempfile.TemporaryDirectory() as tmp:
-        docx_path = os.path.join(tmp, name + '.docx')
-        builder.build_docx(results, meta, TEMPLATE_PATH, docx_path, figures=figures)
-        soffice = find_soffice()
-        if soffice:
-            with open(docx_to_pdf(docx_path, tmp, soffice), 'rb') as f:
-                return f.read(), PDF_MIME, name + '.pdf'
-        current_app.logger.warning('report: LibreOffice (soffice) not found, returning the .docx')
-        with open(docx_path, 'rb') as f:
-            return f.read(), DOCX_MIME, name + '.docx'
+    name = 'Laporan_Luma_{}_{}_{}.pdf'.format(luma['sensor'], luma['start_date'], luma['end_date'])
+    return builder.build_pdf(results, meta, figures=figures), PDF_MIME, name

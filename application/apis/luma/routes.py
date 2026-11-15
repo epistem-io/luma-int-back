@@ -580,8 +580,8 @@ def report():
     elif known_session.account_id != current_user.id:
         raise AppMessageException('this map belongs to another account', error=ErrorCodeEnum.ERR_VALIDATION)
 
-    # imported here so the app still starts where the report's packages
-    # (docxtpl, python-docx, lxml) are not installed yet
+    # imported here so the app still starts where the report's package
+    # (reportlab) is not installed yet
     from application.logic.luma.report import service as report_service
 
     content, mimetype, filename = report_service.build_report(known_session, current_user, inputs=data.get('inputs'))

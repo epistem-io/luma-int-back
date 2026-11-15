@@ -1,6 +1,6 @@
 """
-Builds the map report for one run: Earth Engine pictures -> figures -> template
-fields -> .docx.
+Builds the map report for one run: Earth Engine pictures -> figures -> report
+fields -> PDF.
 
 Nothing here reads the database: `results` is the run's saved output (shape in
 context.py) plus `classified_serialized`, the classified image as stored in
@@ -14,8 +14,8 @@ from application.logic.luma.composite import get_optical_collection
 from luma_ge.data_acquisition import Reflectance_Data
 
 from . import figures as fg
+from . import pdf
 from .context import build_context
-from .render import fill_template
 
 TIGHT_PAD = 0.12      # frame around the area for the detail maps
 WIDE_PAD = 0.9        # frame for the location map (Gambar 1)
@@ -66,8 +66,8 @@ def build_figures(results):
     return figures, seconds
 
 
-def build_docx(results, meta, template_path, out_path, figures=None):
-    """Writes the filled report to out_path and returns the ids of the footnotes dropped."""
+def build_pdf(results, meta, figures=None):
+    """Returns the report as PDF bytes."""
     if figures is None:
         figures, _seconds = build_figures(results)
-    return fill_template(template_path, build_context(results, meta), figures, out_path)
+    return pdf.build_pdf(build_context(results, meta), figures)

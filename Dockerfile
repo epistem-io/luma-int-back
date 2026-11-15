@@ -5,7 +5,7 @@ WORKDIR /app
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 RUN apt update && apt -y install gunicorn && apt -y install git && apt -y install python3-pip && apt -y install poppler-utils \
-    && DEBIAN_FRONTEND=noninteractive apt -y install --no-install-recommends libreoffice-writer fonts-liberation
+    && apt -y install --no-install-recommends fonts-liberation
 
 RUN pip install -r requirements.txt
 
