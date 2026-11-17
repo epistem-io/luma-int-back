@@ -11,10 +11,11 @@ from flask import current_app
 from application import db
 from application.logic.geos.aoi import converter
 from application.logic.luma import export_job as export_job_logic
+from application.logic.luma.composite import get_optical_collection, get_thermal_collection, median_composite
 from application.utils.common import AppMessageException, get_date
 from application.utils.pubsub import publish
 
-from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats, final_Image
+from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats
 from luma_ge.classification import FeatureExtraction, Generate_LULC
 from luma_ge.classification_scheme import LULC_Scheme_Manager
 from luma_ge.predictor import PredictorCalculation
@@ -78,7 +79,6 @@ def generate(known_session, known_aoi, aoi, luma, classes):
 
     session_id = known_session.id
     optical_data = luma.landsat_version
-    thermal_data = optical_data.replace('_SR', '_TOA')
     start_date = luma.start_date.strftime('%Y-%m-%d')
     end_date = luma.end_date.strftime('%Y-%m-%d')
     cloud_cover = luma.cloud_cover
@@ -135,15 +135,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
 
     #region get optical data
     try:
-        collection, _meta = reflectance.get_optical_data(
-            aoi=aoi,
-            start_date=start_date,
-            end_date=end_date,
-            optical_data=optical_data,
-            cloud_cover=luma.cloud_cover,
-            verbose=False,
-            compute_detailed_stats=False
-        )
+        collection, _meta = get_optical_collection(reflectance, aoi, start_date, end_date, optical_data, luma.cloud_cover)
     except Exception as e:
         _log_step_failure('get optical data', e)
     step = step + 1
@@ -152,16 +144,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
 
     #region get thermal data
     try:
-        if optical_data not in ['L1_RAW', 'L2_RAW', 'L3_RAW']:
-            thermal_collection, _meta = reflectance.get_thermal_bands(
-                aoi=aoi,
-                start_date=start_date,
-                end_date=end_date,
-                thermal_data=thermal_data,
-                cloud_cover=luma.cloud_cover,
-                verbose=False,
-                compute_detailed_stats=False
-            )
+        thermal_collection = get_thermal_collection(reflectance, aoi, start_date, end_date, optical_data, luma.cloud_cover)
     except Exception as e:
         _log_step_failure('get thermal bands', e)
     step = step + 1
@@ -191,13 +174,12 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     #region create image composite
     try:
         if collection is not None:
-            image_processor = final_Image()
             if thermal_collection is not None:
                 thermal_median = thermal_collection.median().clip(aoi)
-                composite = image_processor.get_temporal_composite(collection, aoi, reducer='median', verbose=False)
+                composite = median_composite(collection, aoi)
                 composite = composite.addBands(thermal_median).toFloat()
             else:
-                composite = image_processor.get_temporal_composite(collection, aoi, reducer='median', verbose=False).toFloat()
+                composite = median_composite(collection, aoi).toFloat()
             image = composite
     except Exception as e:
         _log_step_failure('create image composite', e)
