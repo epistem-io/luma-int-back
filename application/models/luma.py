@@ -25,6 +25,7 @@ class Luma(db.Model):
     split_ratio = db.Column(db.Float, nullable=True)  # training fraction 0-1; NULL = legacy 0.7
     predictor_config = db.Column(JSONB, nullable=True)
     use_predictor = db.Column(db.Boolean, default=False)
+    predictor_recommendation = db.Column(JSONB, nullable=True)  # last predictor optimizer result; NULL = not run
     
     created_date = db.Column(db.DateTime, default=get_date)
     modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)
@@ -175,6 +176,21 @@ class ExportJob(db.Model):
     email_requested = db.Column(db.Boolean, default=False)
     requester_email = db.Column(db.String(255), nullable=True)
     error_message = db.Column(db.Text, nullable=True)
+
+    created_date = db.Column(db.DateTime, default=get_date)
+    modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)
+
+
+class ReportData(db.Model):
+    """What the map report needs from a run; one row per session (see logic/luma/report/store.py)."""
+    __tablename__ = 'luma_report_data'
+    id = db.Column(db.String(36), primary_key=True, default=get_uuid)
+
+    session_id = db.Column(db.String(36), db.ForeignKey('user_session.id'), index=True, nullable=False)
+    session = db.relationship('Session', backref='luma_report_data')
+
+    generation = db.Column(JSONB, nullable=True)  # snapshot written when the map is generated
+    thematic = db.Column(JSONB, nullable=True)    # latest thematic accuracy test; cleared on regeneration
 
     created_date = db.Column(db.DateTime, default=get_date)
     modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)

@@ -70,14 +70,7 @@ def median_composite(collection, aoi):
     return result['image'] if isinstance(result, dict) else result
 
 
-def build_composite(aoi, start_date, end_date, landsat_version='L8_SR', cloud_cover=30, return_collection=False):
-
-    optical_data = landsat_version
-
-    reflectance = Reflectance_Data()
-    collection, _meta = get_optical_collection(reflectance, aoi, start_date, end_date, optical_data, cloud_cover)
-    thermal_collection = get_thermal_collection(reflectance, aoi, start_date, end_date, optical_data, cloud_cover)
-
+def _has_images(collection):
     try:
         stats = Reflectance_Stats()
         detailed_stats = stats.get_collection_statistics(collection, compute_stats=True, print_report=False)
@@ -87,10 +80,23 @@ def build_composite(aoi, start_date, end_date, landsat_version='L8_SR', cloud_co
                 total_images = int(collection.size().getInfo())
             except Exception:
                 total_images = 0
-        if total_images <= 0:
-            return (None, None) if return_collection else None
+        return total_images > 0
     except Exception as e:
         current_app.logger.error('build_composite: image count check failed: {}'.format(e))
+        return False
+
+
+def build_composite(aoi, start_date, end_date, landsat_version='L8_SR', cloud_cover=30, return_collection=False, check_images=True):
+
+    optical_data = landsat_version
+
+    reflectance = Reflectance_Data()
+    collection, _meta = get_optical_collection(reflectance, aoi, start_date, end_date, optical_data, cloud_cover)
+    thermal_collection = get_thermal_collection(reflectance, aoi, start_date, end_date, optical_data, cloud_cover)
+
+    # check_images=False skips the count (several Earth Engine round-trips)
+    # for callers that run after /image-mosaic already found images.
+    if check_images and not _has_images(collection):
         return (None, None) if return_collection else None
 
     if thermal_collection is not None:

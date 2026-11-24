@@ -18,6 +18,7 @@ from application.models.luma import ExportJob, Luma
 from application.models.user import Session, Account
 from application.logic.luma.gcs_export import export_to_gcs, write_author_metadata
 from application.logic.luma import export_job as export_job_logic
+from application.logic.luma import predictor as predictor_logic
 from application.logic.geos import aoi as aoi_logic
 
 _, _PROJECT_ID = google.auth.default()
@@ -34,21 +35,8 @@ def _build_metadata(luma, session, train_gdf):
     except Exception:
         classes_str = '-'
 
-    predictor_config = luma.predictor_config or {}
-    if luma.use_predictor:
-        parts = []
-        individual = predictor_config.get('individual_predictors', {})
-        if individual.get('elevation'):
-            parts.append('Elevation')
-        if individual.get('slope'):
-            parts.append('Slope')
-        if individual.get('aspect'):
-            parts.append('Aspect')
-        if individual.get('spectral_indices'):
-            parts += individual.get('spectral_indices')
-        predictor_str = ', '.join(parts) if parts else 'Not Used'
-    else:
-        predictor_str = 'Not Used'
+    labels = predictor_logic.selected_labels(luma) if luma.use_predictor else []
+    predictor_str = ', '.join(labels) if labels else 'Not Used'
 
     start_date = luma.start_date.strftime('%Y-%m-%d')
     end_date = luma.end_date.strftime('%Y-%m-%d')

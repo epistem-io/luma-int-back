@@ -5,6 +5,10 @@ GOOD_TD = 1.8
 WEAK_TD = 1.0
 LOW_PIXEL_COUNT = 5
 
+# Same thresholds as luma_ge sample_quality.separability_level('SILHOUETTE').
+GOOD_SILHOUETTE = 0.5
+WEAK_SILHOUETTE = 0.25
+
 
 def _overall_label(mean_td):
     if mean_td >= GOOD_TD:
@@ -82,3 +86,53 @@ def build_summary(uploaded_classes, pixel_counts, sep_df):
         'low_sample_classes': low_sample_classes,
         'problem_pairs': problem_pairs
     }
+
+
+def silhouette_label(score):
+    if score >= GOOD_SILHOUETTE:
+        return 'good'
+    if score >= WEAK_SILHOUETTE:
+        return 'med'
+    return 'poor'
+
+
+def build_comparison(band_sets, silhouette_rows, td_summaries):
+    """
+    Before/after view of separability for the predictor step.
+
+    band_sets: {'composite': [bands], 'with_predictors': [bands]}, before first
+    silhouette_rows: records of luma_ge compare_predictor_sets(), one per set
+    td_summaries: {set key: build_summary(...) on that set's bands, or None}
+
+    TD can only rise when bands are added, so the silhouette score (computed
+    on standardized features) is the measure that is comparable across sets.
+    """
+    rows = {row['Predictor_Set']: row for row in silhouette_rows}
+
+    sets = []
+    for key, bands in band_sets.items():
+        row = rows.get(key)
+        silhouette = None
+        if row is not None:
+            overall = float(row['Overall_Silhouette'])
+            silhouette = {
+                'overall': overall,
+                'level': silhouette_label(overall),
+                'mean_pairwise': float(row['Mean_Pairwise_Silhouette']),
+                'min_pairwise': float(row['Min_Pairwise_Silhouette']),
+                'worst_pair': str(row['Worst_Class_Pair']),
+                'negative_sample_ratio': float(row['Negative_Sample_Ratio']),
+            }
+        sets.append({
+            'key': key,
+            'bands': list(bands),
+            'num_bands': len(bands),
+            'td': td_summaries.get(key),
+            'silhouette': silhouette,
+        })
+
+    change = None
+    if len(sets) >= 2 and sets[0]['silhouette'] and sets[-1]['silhouette']:
+        change = round(sets[-1]['silhouette']['overall'] - sets[0]['silhouette']['overall'], 3)
+
+    return {'sets': sets, 'silhouette_change': change}
