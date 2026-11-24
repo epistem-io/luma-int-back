@@ -3,12 +3,12 @@ import geopandas as gpd
 from application import db
 from application.logic.geos.aoi import converter
 from application.logic.luma.composite import build_composite
+from application.logic.luma import predictor as predictor_logic
 from application.logic.luma.training_data import get_current_class_scheme, find_lulc_column
 from application.utils.common import AppMessageException, ErrorCodeEnum
 
 from luma_ge.accuracy import thematic_accuracy
 from luma_ge.classification import FeatureExtraction, Generate_LULC
-from luma_ge.predictor import PredictorCalculation
 
 SPLIT_RATIO = 0.7
 CLASS_PROPERTY = 'class_id'
@@ -87,15 +87,7 @@ def _classify(known_session, aoi, luma):
     if image is None:
         raise AppMessageException('no imagery available for the selected period and area', error=ErrorCodeEnum.ERR_VALIDATION)
 
-    if luma.use_predictor:
-        predictor_service = PredictorCalculation()
-        result = predictor_service.compute_predictors(
-            composite=image,
-            aoi=aoi,
-            predictor_config=luma.predictor_config,
-            collection=collection,
-        )
-        image = result['stacked_predictors']
+    image = predictor_logic.compute_stack(luma, image, aoi, collection=collection)
 
     roi_ee = converter.convert_roi_gdf(train_gdf)
 

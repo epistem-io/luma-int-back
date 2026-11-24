@@ -25,6 +25,7 @@ class Luma(db.Model):
     split_ratio = db.Column(db.Float, nullable=True)  # training fraction 0-1; NULL = legacy 0.7
     predictor_config = db.Column(JSONB, nullable=True)
     use_predictor = db.Column(db.Boolean, default=False)
+    predictor_recommendation = db.Column(JSONB, nullable=True)  # last predictor optimizer result; NULL = not run
     
     created_date = db.Column(db.DateTime, default=get_date)
     modified_date = db.Column(db.DateTime, default=get_date, onupdate=get_date)

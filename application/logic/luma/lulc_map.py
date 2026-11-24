@@ -11,6 +11,7 @@ from flask import current_app
 from application import db
 from application.logic.geos.aoi import converter
 from application.logic.luma import export_job as export_job_logic
+from application.logic.luma import predictor as predictor_logic
 from application.logic.luma.report import store as report_store
 from application.logic.luma.composite import get_optical_collection, get_thermal_collection, median_composite
 from application.utils.common import AppMessageException, get_date
@@ -19,7 +20,6 @@ from application.utils.pubsub import publish
 from luma_ge.data_acquisition import Reflectance_Data, Reflectance_Stats
 from luma_ge.classification import FeatureExtraction, Generate_LULC
 from luma_ge.classification_scheme import LULC_Scheme_Manager
-from luma_ge.predictor import PredictorCalculation
 
 PREBUILT_SCHEME = 'RESTORE+ Project'
 
@@ -191,14 +191,7 @@ def generate(known_session, known_aoi, aoi, luma, classes):
     #region predictors
     if use_predictor:
         try:
-            predictor_service = PredictorCalculation()
-            result = predictor_service.compute_predictors(
-                    composite=image,
-                    aoi=aoi,
-                    predictor_config=predictor_config,
-                    collection=collection,
-                )
-            image = result['stacked_predictors']
+            image = predictor_logic.compute_stack(luma, image, aoi, collection=collection)
         except Exception as e:
             _log_step_failure('process predictors', e)
     step = step + 1

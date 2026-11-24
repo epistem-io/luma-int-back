@@ -59,11 +59,39 @@ PREDICTOR_INFO = {
     'GNDVI': ('Green Normalized Difference Vegetation Index', '—'),
     'GBNDVI': ('Green-Blue Normalized Difference Vegetation Index', '—'),
     'NDWI': ('Normalized Difference Water Index', '—'),
+    'MCARI': ('Modified Chlorophyll Absorption in Reflectance Index', '—'),
+    'MCARI1': ('Modified Chlorophyll Absorption in Reflectance Index 1', '—'),
+    'RENDVI': ('Red Edge Normalized Difference Vegetation Index', '—'),
+    'NDMI': ('Normalized Difference Moisture Index', '—'),
+    'AWEIsh': ('Automated Water Extraction Index (with shadow)', '—'),
+    'AWEInsh': ('Automated Water Extraction Index (no shadow)', '—'),
+    'NDTI': ('Normalized Difference Turbidity Index', '—'),
+    'ANDWI': ('Augmented Normalized Difference Water Index', '—'),
+    'DBSI': ('Dry Bare-Soil Index', '—'),
+    'BLFEI': ('Built-Up Land Features Extraction Index', '—'),
+    'MBI': ('Modified Bare Soil Index', '—'),
+    'EBBI': ('Enhanced Built-Up and Bareness Index', '—'),
 }
 TERRAIN_INFO = {
     'elevation': ('Elevation', 'Ketinggian permukaan', 'Perbedaan dataran rendah dan tinggi', 'NASADEM'),
     'slope': ('Slope', 'Kemiringan lereng', 'Bentuk medan (datar–curam)', 'Turunan DEM'),
     'aspect': ('Aspect', 'Arah hadap lereng', '—', 'Turunan DEM'),
+    'landform': ('Landform', 'Bentuk lahan', '—', 'ALOS Landforms'),
+}
+# Band as saved in predictor_config['sentinel1' / 'palsar'] -> (code, full name, measures, source).
+RADAR_INFO = {
+    'S1_VV': ('VV', 'Hamburan balik radar polarisasi VV', '—', 'Sentinel-1'),
+    'S1_VH': ('VH', 'Hamburan balik radar polarisasi VH', '—', 'Sentinel-1'),
+    'S1_VV_VH': ('VV-VH Ratio', 'Rasio hamburan balik VV terhadap VH', '—', 'Sentinel-1'),
+    'PALSAR_HH': ('HH', 'Hamburan balik radar polarisasi HH', '—', 'ALOS PALSAR'),
+    'PALSAR_HV': ('HV', 'Hamburan balik radar polarisasi HV', '—', 'ALOS PALSAR'),
+    'PALSAR_HH_HV': ('HV-HH Ratio', 'Rasio hamburan balik HH terhadap HV', '—', 'ALOS PALSAR'),
+}
+# Flag in predictor_config['individual_predictors'] -> (code, full name, measures, source).
+DISTANCE_INFO = {
+    'dist_roads': ('dist_roads', 'Jarak ke jalan utama terdekat', '—', 'GRIP4'),
+    'dist_coast': ('dist_coast', 'Jarak ke garis pantai terdekat', '—', 'S2COAST-2023'),
+    'dist_settlement': ('dist_settlement', 'Jarak ke permukiman terdekat', '—', 'HRSL'),
 }
 
 
@@ -86,17 +114,36 @@ def _row_total(matrix, class_id):
 
 
 def _predictors(luma, sensor_name):
+    """
+    Rows of the predictor table, from the predictor_config saved with the run
+    (written by logic/luma/predictor_rules.build_engine_config; configs saved
+    before radar, distance and landform existed simply lack those keys).
+    """
     if not luma.get('use_predictor'):
         return []
     cfg = luma.get('predictor_config') or {}
     individual = cfg.get('individual_predictors') or {}
     rows = []
-    for code in (cfg.get('spectral_indices') or individual.get('spectral_indices') or []):
+
+    spectral = list(cfg.get('spectral_indices') or individual.get('spectral_indices') or [])
+    # indices that need the thermal band are saved under their own key
+    spectral += [code for code in (cfg.get('composite_indices') or []) if code not in spectral]
+    for code in spectral:
         name, measures = PREDICTOR_INFO.get(code, (code, '—'))
         rows.append({'code': code, 'name': name, 'measures': measures, 'source': sensor_name})
+
     for key, (code, name, measures, source) in TERRAIN_INFO.items():
         if individual.get(key):
             rows.append({'code': code, 'name': name, 'measures': measures, 'source': source})
+
+    for band in list(cfg.get('sentinel1') or []) + list(cfg.get('palsar') or []):
+        code, name, measures, source = RADAR_INFO.get(band, (band, band, '—', '—'))
+        rows.append({'code': code, 'name': name, 'measures': measures, 'source': source})
+
+    for key, (code, name, measures, source) in DISTANCE_INFO.items():
+        if individual.get(key):
+            rows.append({'code': code, 'name': name, 'measures': measures, 'source': source})
+
     return rows
 
 

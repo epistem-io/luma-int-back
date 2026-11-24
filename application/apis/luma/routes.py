@@ -20,6 +20,7 @@ from application.logic.geos import aoi as aoi_logic
 from application.logic.user import session as session_logic
 from application.logic.luma import image_mosaic, lulc_classes, training_data, test, luma as luma_logic, lulc_map, predictor, separability, thematic, export_job as export_job_logic
 from application.logic.luma import composite as composite_logic
+from application.logic.luma import predictor_optimizer
 from application.logic.luma.gcs_export import write_author_metadata
 from application.logic.luma.report import store as report_store
 from application.logic.geos import gee_utils
@@ -401,6 +402,126 @@ def post_predictor():
     return make_response(jsonify(success_handler({ 'message': 'success' })), 200)
 
 
+@luma_apis_blueprint.route('/predictor/available', methods=['GET'])
+@cross_origin()
+def get_available_predictors():
+    """
+    Predictors for step 4, grouped, each flagged available or not for the
+    sensor and period saved by /image-mosaic, plus the saved selection.
+    A lookup in the engine's catalog: no Earth Engine request.
+    """
+    g_var.__api_name__ = 'get_available_predictors'
+    g_var.__api_description__ = 'get_available_predictors'
+
+    session_id = request.args.get('session_id', '')
+
+    known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
+
+    listing = predictor.list_available(luma)
+    # last optimizer result, if any; 'stale' when its inputs changed since
+    listing['recommendation'] = predictor_optimizer.saved_recommendation(known_session, luma)
+
+    results = {
+        'message': 'success',
+        'results': listing,
+    }
+
+    return make_response(jsonify(success_handler(results)), 200)
+
+
+def _predictors_arg():
+    """?predictors=NDVI,ELEVATION (or the parameter repeated) -> list of ids."""
+    ids = []
+    for raw in request.args.getlist('predictors'):
+        ids += [part.strip() for part in raw.split(',') if part.strip()]
+    return ids
+
+
+@luma_apis_blueprint.route('/predictor/preview', methods=['GET'])
+@cross_origin()
+def preview_predictors():
+    """
+    Tile layers for the predictors named in ?predictors=, each with a default
+    colour scheme, for the map canvas. Predictors the engine could not
+    produce for this area and period come back under 'skipped'.
+    """
+    g_var.__api_name__ = 'preview_predictors'
+    g_var.__api_description__ = 'preview_predictors'
+
+    session_id = request.args.get('session_id', '')
+
+    known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
+
+    ids = predictor.validated_ids(luma, _predictors_arg())
+    if not ids:
+        raise AppMessageException('please input: predictors', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    results = {
+        'message': 'success',
+        'results': predictor.preview(luma, aoi, ids),
+    }
+
+    return make_response(jsonify(success_handler(results)), 200)
+
+
+@luma_apis_blueprint.route('/predictor/download-url', methods=['GET'])
+@cross_origin()
+def predictor_download_url():
+    """
+    GeoTIFF download URL for the predictors named in ?predictors=, one band
+    each. Returns download_url = '' when Earth Engine refuses (e.g. > 50 MB
+    request), like /image-mosaic/download-url.
+    """
+    g_var.__api_name__ = 'predictor_download_url'
+    g_var.__api_description__ = 'predictor_download_url'
+
+    session_id = request.args.get('session_id', '')
+
+    known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
+
+    ids = predictor.validated_ids(luma, _predictors_arg())
+    if not ids:
+        raise AppMessageException('please input: predictors', error=ErrorCodeEnum.ERR_VALIDATION)
+
+    results = {
+        'message': 'success',
+        'results': predictor.download_url(luma, aoi, session_id, ids),
+    }
+
+    return make_response(jsonify(success_handler(results)), 200)
+
+
+@luma_apis_blueprint.route('/predictor/optimize', methods=['GET'])
+@cross_origin()
+def optimize_predictors():
+    """
+    Run the predictor optimizer and stream its progress as NDJSON lines shaped
+    like /lulc-map ({process, data, w, a, next}). The last line ('end')
+    carries the recommendation, which is also saved on the session and
+    returned by /predictor/available. A failure after the stream has started
+    arrives as an 'error' line.
+
+    ?predictors= narrows the candidates; default is every available predictor.
+    """
+    g_var.__api_name__ = 'optimize_predictors'
+    g_var.__api_description__ = 'optimize_predictors'
+
+    session_id = request.args.get('session_id', '')
+
+    known_session = session_logic.get_session(session_id, validate=True)
+    luma = luma_logic.get(known_session, validate=True)
+    known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
+
+    job = predictor_optimizer.prepare(known_session, luma, _predictors_arg())
+
+    return Response(stream_with_context(predictor_optimizer.stream(job, aoi, luma)), mimetype='application/x-ndjson')
+
+
 @luma_apis_blueprint.route('/input-summary', methods=['GET'])
 @cross_origin()
 def get_luma_summary():
@@ -641,6 +762,28 @@ def training_data_separability():
     known_session = session_logic.get_session(session_id, validate=True)
     luma = luma_logic.get(known_session, validate=True)
     known_aoi, aoi = aoi_logic.get_ee_aoi(session_id)
+
+    # With ?predictors= the analysis runs on the composite plus those
+    # predictors and adds a before/after comparison (predictor step).
+    predictor_ids = _predictors_arg()
+    if predictor_ids:
+        predictor_ids = predictor.validated_ids(luma, predictor_ids)
+        outcome = separability.analyze_with_predictors(
+            known_session,
+            aoi,
+            luma,
+            predictor_ids,
+            scale=scale,
+            max_pixels_per_class=max_pixels_per_class,
+        ) or {}
+
+        results = {
+            'message': 'success',
+            'sample_quality': outcome.get('sample_quality'),
+            'comparison': outcome.get('comparison'),
+        }
+
+        return make_response(jsonify(success_handler(results)), 200)
 
     sample_quality_result = separability.analyze(
         known_session,
