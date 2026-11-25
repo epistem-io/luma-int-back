@@ -2,11 +2,11 @@
 from application import db
 from application.apis.luma import luma_apis_blueprint
 from flask import make_response, request, jsonify, current_app, g as g_var
-from flask import Response, stream_with_context, send_file
+from flask import Response, stream_with_context
 from flask_login import current_user
 from flask_cors import cross_origin
 
-import io
+import base64
 import os
 import uuid
 import json
@@ -706,7 +706,15 @@ def report():
     from application.logic.luma.report import service as report_service
 
     content, mimetype, filename = report_service.build_report(known_session, current_user, inputs=data.get('inputs'))
-    return send_file(io.BytesIO(content), mimetype=mimetype, as_attachment=True, download_name=filename)
+
+    # Sent inside JSON rather than as a file response: download managers (IDM)
+    # take over file responses and request them again without the login header,
+    # so the user gets a login prompt instead of the report.
+    return make_response(jsonify(success_handler({
+        'filename': filename,
+        'mimetype': mimetype,
+        'content': base64.b64encode(content).decode('ascii'),
+    })), 200)
 
 
 @luma_apis_blueprint.route('/download-status', methods=['GET'])
